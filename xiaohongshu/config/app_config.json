@@ -1,0 +1,10 @@
+{
+  "llm_api_key": "sk-zbhpqjrimuxoggjpijdxqaoojubltywzhoxmxjjrhylatqrf",
+  "openai_base_url": "https://api.siliconflow.cn/v1",
+  "default_model": "Pro/zai-org/GLM-4.7",
+  "tavily_api_key": "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",
+  "tavily_api_keys": [
+    "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"
+  ],
+  "xhs_mcp_url": "http://localhost:18060/mcp"
+}
