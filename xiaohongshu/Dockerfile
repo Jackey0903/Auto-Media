@@ -1,8 +1,11 @@
-# 使用官方 Python 3.11 基础镜像
-FROM python:3.11-slim
+# 使用官方 Python 3.11-bookworm 基础镜像 (更稳定)
+FROM python:3.11-slim-bookworm
 
 # 设置工作目录
 WORKDIR /app
+
+# 换源：使用阿里云镜像加速 Debian 软件源
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources
 
 # 设置环境变量
 ENV PYTHONDONTWRITEBYTECODE=1 \
