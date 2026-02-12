@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Python 调度器/Web应用服务
+  app:
+    build:
+      context: ./xiaohongshu
+      dockerfile: Dockerfile
+    container_name: self-media-scheduler
+    restart: unless-stopped
+    volumes:
+      - ./xiaohongshu/config:/app/config
+      - ./xiaohongshu/cache:/app/cache
+      - ./xiaohongshu/logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+      - XHS_MCP_URL=http://mcp-server:18060/mcp
+      # 在这里填入您的API Key，或者通过 .env 文件加载
+      # - LLM_API_KEY=your_key_here
+      # - OPENAI_BASE_URL=your_url_here
+      # - TAVILY_API_KEY=your_key_here
+    depends_on:
+      - mcp-server
+    # 如果想同时保留 Web UI 访问，可以映射端口
+    # ports:
+    #   - "8080:8080"
+    # 如果要运行 Web 服务器而不是调度器，可以覆盖 command
+    # command: ["python", "app.py"]
+
+  # 小红书 MCP 服务 (Go)
+  mcp-server:
+    # 强制在Mac M1/M2/M3上使用AMD64架构运行（为了兼容Google Chrome）
+    platform: linux/amd64
+    build:
+      context: ./xiaohongshu-mcp
+      dockerfile: Dockerfile
+    container_name: self-media-mcp
+    restart: unless-stopped
+    volumes:
+      # 持久化 cookies，避免重启后需要重新登录
+      - ./xiaohongshu-mcp/cookies:/app/cookies
+      # 持久化 Chrome 用户数据 (可选)
+      # - ./xiaohongshu-mcp/chrome_data:/app/chrome_data
+    environment:
+      - TZ=Asia/Shanghai
+    # 暴露端口供调试，实际上 app 通过内部网络访问
+    ports:
+      - "18060:18060"
+    # 增加共享内存大小，避免 Chrome 崩溃
+    shm_size: '2gb'
