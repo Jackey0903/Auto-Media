@@ -125,7 +125,8 @@ class Server:
             try:
                 stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
                 read, write = stdio_transport
-                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=timedelta(seconds=600)))
+                logging.info(f"Setting MCP ClientSession read_timeout to 3600s for {self.name}")
+                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=timedelta(seconds=3600)))
                 await session.initialize()
                 self.session = session
             except Exception as e:
