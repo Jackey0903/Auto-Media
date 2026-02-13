@@ -681,51 +681,87 @@ class ContentGenerator:
             return []
 
     def _parse_topics_from_response(self, content: str) -> List[Dict[str, str]]:
-        """从LLM响应中解析主题列表
-
-        Args:
-            content: LLM返回的内容
-
-        Returns:
-            解析出的主题列表
-        """
+        """从LLM响应中解析主题列表"""
         try:
-            # 尝试直接解析JSON
-            import re
+            # 1. 尝试直接解析
+            try:
+                topics = json.loads(content)
+                if self._validate_topics(topics):
+                    return topics[:20]
+            except json.JSONDecodeError:
+                pass
 
-            # 查找JSON代码块
+            # 2. 尝试提取 JSON 块
+            import re
             json_match = re.search(r'```json\s*([\s\S]*?)\s*```', content)
             if json_match:
                 json_str = json_match.group(1)
-            else:
-                # 查找数组格式的JSON
-                json_match = re.search(r'\[\s*{[\s\S]*}\s*\]', content)
-                if json_match:
-                    json_str = json_match.group(0)
-                else:
-                    json_str = content
+                try:
+                    topics = json.loads(json_str)
+                    if self._validate_topics(topics):
+                        return topics[:20]
+                except json.JSONDecodeError:
+                    pass
 
-            topics = json.loads(json_str)
+            # 3. 尝试提取数组部分
+            json_match = re.search(r'\[\s*\{[\s\S]*\}\s*\]', content)
+            if json_match:
+                json_str = json_match.group(0)
+                try:
+                    topics = json.loads(json_str)
+                    if self._validate_topics(topics):
+                        return topics[:20]
+                except json.JSONDecodeError:
+                    # 尝试修复常见 JSON 错误 (如尾部逗号)
+                    try:
+                        fixed_json = re.sub(r',\s*([\]}])', r'\1', json_str)
+                        topics = json.loads(fixed_json)
+                        if self._validate_topics(topics):
+                            return topics[:20]
+                    except:
+                        pass
 
-            if isinstance(topics, list):
-                # 验证每个主题的格式
-                valid_topics = []
-                for topic in topics:
-                    if isinstance(topic, dict) and 'title' in topic:
-                        valid_topics.append({
-                            'title': topic.get('title', ''),
-                            'summary': topic.get('summary', '')
-                        })
+            logger.warning("无法解析 JSON，尝试使用正则表达式提取内容")
+            
+            # 4. 最后的手段：使用正则强行提取 title 和 summary
+            topics = []
+            # 匹配 {"title": "...", "summary": "..."} 模式
+            # 注意：这个正则比较宽通过，可能匹配到不该匹配的，但在 fallback 情况下是可以接受的
+            items = re.findall(r'\{\s*"title"\s*:\s*"(.*?)"\s*,\s*"summary"\s*:\s*"(.*?)"\s*\}', content, re.DOTALL)
+            
+            for title, summary in items:
+                topics.append({
+                    "title": title.strip(),
+                    "summary": summary.strip()
+                })
+            
+            if topics:
+                logger.info(f"通过正则回退机制提取到 {len(topics)} 个主题")
+                return topics[:20]
 
-                logger.info(f"成功解析出 {len(valid_topics)} 个热点主题")
-                return valid_topics[:20]  # 限制返回20个
+            logger.error("所有解析方法均失败")
+            return []
 
-        except json.JSONDecodeError as e:
-            logger.error(f"解析JSON失败: {e}")
         except Exception as e:
-            logger.error(f"解析主题失败: {e}")
+            logger.error(f"解析主题彻底失败: {e}")
+            return []
 
-        return []
+    def _validate_topics(self, topics: Any) -> bool:
+        """验证解析出的主题列表格式"""
+        if not isinstance(topics, list):
+            return False
+        if not topics:
+            return False
+            
+        # 验证前几个元素
+        for i, topic in enumerate(topics[:3]):
+            if not isinstance(topic, dict):
+                return False
+            if 'title' not in topic:
+                return False
+        
+        logger.info(f"成功解析出 {len(topics)} 个热点主题")
+        return True
 
     async def fetch_topics_from_url(self, url: str) -> List[Dict[str, str]]:
         """从URL爬取内容并提取主题

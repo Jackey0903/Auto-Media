@@ -44,8 +44,20 @@ func (d *ImageDownloader) DownloadImage(imageURL string) (string, error) {
 		return "", errors.New("invalid image URL format")
 	}
 
+	// 创建请求
+	req, err := http.NewRequest("GET", imageURL, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create request")
+	}
+
+	// 添加模拟浏览器的Header
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+	req.Header.Set("Referer", "https://www.google.com/")
+
 	// 下载图片数据
-	resp, err := d.httpClient.Get(imageURL)
+	resp, err := d.httpClient.Do(req)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to download image")
 	}
