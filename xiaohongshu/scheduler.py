@@ -86,11 +86,12 @@ async def run_generation_task():
     except Exception as e:
         logger.error(f"任务执行失败: {e}", exc_info=True)
     finally:
-        # 任务结束后清理资源? 
-        # 对于长期运行的调度器，保持连接通常更好，或者是每次都重新初始化
-        # 为了稳定性，这里选择仅清理连接，下次运行重新初始化
-        # await server_manager.cleanup()
-        pass
+        # 任务结束后清理资源
+        # 对于使用 asyncio.run 的调度方式，必须清理资源，因为每次运行都会创建新的事件循环
+        # 如果不清理，server_manager 中保存的 client 对象会绑定到已关闭的旧循环上，导致 RuntimeError
+        logger.info("清理资源...")
+        await server_manager.cleanup()
+        logger.info("资源清理完成")
 
 def job():
     """同步包装异步任务"""
