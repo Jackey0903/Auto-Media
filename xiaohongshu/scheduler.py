@@ -62,8 +62,8 @@ async def run_generation_task():
             await server_manager.initialize(config)
             
         # 初始化生成器
-        config_manager = ConfigManager()
-        generator = ContentGenerator(config_manager, server_manager)
+        # 初始化生成器
+        generator = ContentGenerator(config)
         
         # 1. 获取热点话题 (默认为 AI 领域)
         topics = await generator.fetch_trending_topics(domain="AI")
@@ -98,7 +98,7 @@ def job():
 
 def main():
     logger.info("启动自动发布调度器...")
-    logger.info("计划每 1 小时执行一次")
+    logger.info("计划每 1 分钟执行一次 (测试模式)")
     
     # 立即运行一次（可选，用于测试）
     if os.getenv("RUN_ON_STARTUP", "false").lower() == "true":
@@ -106,7 +106,7 @@ def main():
         job()
     
     # 设置定时任务
-    schedule.every(1).hours.do(job)
+    schedule.every(1).minutes.do(job)
     
     # 保持运行
     while True:
