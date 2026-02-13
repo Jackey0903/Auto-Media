@@ -95,11 +95,17 @@ async def run_generation_task():
 
 def job():
     """同步包装异步任务"""
-    asyncio.run(run_generation_task())
+    try:
+        asyncio.run(run_generation_task())
+    except Exception as e:
+        logger.error(f"任务执行出错: {e}")
+    except BaseException as e:
+        # 捕获 CancelledError 等系统异常，防止容器重启
+        logger.error(f"任务被中断或取消: {e}")
 
 def main():
     logger.info("启动自动发布调度器...")
-    logger.info("计划每 1 分钟执行一次 (测试模式)")
+    logger.info("计划每 5 分钟执行一次")
     
     # 立即运行一次（可选，用于测试）
     if os.getenv("RUN_ON_STARTUP", "false").lower() == "true":
@@ -107,7 +113,7 @@ def main():
         job()
     
     # 设置定时任务
-    schedule.every(1).minutes.do(job)
+    schedule.every(5).minutes.do(job)
     
     # 保持运行
     while True:
