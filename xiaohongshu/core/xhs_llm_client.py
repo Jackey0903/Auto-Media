@@ -102,9 +102,9 @@ class Server:
             
             try:
                 # 使用 AsyncExitStack 管理连接生命周期
-                transport = await self.exit_stack.enter_async_context(streamablehttp_client(url, sse_read_timeout=timedelta(seconds=3600)))
+                transport = await self.exit_stack.enter_async_context(streamablehttp_client(url, sse_read_timeout=None))
                 read, write, _ = transport
-                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=timedelta(seconds=3600)))
+                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=None))
                 await session.initialize()
                 self.session = session
             except Exception as e:
@@ -125,8 +125,8 @@ class Server:
             try:
                 stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
                 read, write = stdio_transport
-                logging.info(f"Setting MCP ClientSession read_timeout to 3600s for {self.name}")
-                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=timedelta(seconds=3600)))
+                logging.info(f"Setting MCP ClientSession read_timeout to None (infinite) for {self.name}")
+                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=None))
                 await session.initialize()
                 self.session = session
             except Exception as e:

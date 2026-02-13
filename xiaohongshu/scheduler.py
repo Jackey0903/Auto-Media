@@ -104,21 +104,13 @@ def job():
         logger.error(f"任务被中断或取消: {e}")
 
 def main():
-    logger.info("启动自动发布调度器...")
-    logger.info("执行模式：立即执行一次 -> 休眠 60 分钟")
+    logger.info("启动自动发布任务 (原始模式)...")
     
-    # 立即运行一次
-    logger.info("=== 开始执行任务 ===")
-    job()
-    logger.info("=== 任务执行结束，等待下一次调度（60分钟后） ===")
-    
-    # 设置长定时任务，避免重叠
-    schedule.every(60).minutes.do(job)
-    
-    # 保持运行
     while True:
-        schedule.run_pending()
-        time.sleep(1)
+        logger.info("=== 开始执行任务 ===")
+        job()
+        logger.info("=== 任务完成，休眠 1 小时 ===")
+        time.sleep(3600)
         time.sleep(60)
 
 if __name__ == "__main__":
