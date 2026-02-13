@@ -104,7 +104,7 @@ class Server:
                 # 使用 AsyncExitStack 管理连接生命周期
                 transport = await self.exit_stack.enter_async_context(streamablehttp_client(url, sse_read_timeout=timedelta(seconds=3600)))
                 read, write, _ = transport
-                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=timedelta(seconds=600)))
+                session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=timedelta(seconds=3600)))
                 await session.initialize()
                 self.session = session
             except Exception as e:
