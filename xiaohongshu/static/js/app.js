@@ -201,7 +201,14 @@ async function startGenerate(initialTopic = null, initialContentType = null, exi
         // 模拟进度 (真实进度需 WebSocket，此处为模拟体验)
         simulateProgress(taskId);
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            // 服务端返回了非 JSON 响应（如纯文本 500 错误）
+            const text = response.statusText || '服务器内部错误';
+            throw new Error(`服务器错误 (${response.status}): ${text}`);
+        }
 
         if (data.success) {
             updateTaskProgress(taskId, 100, '发布成功！');
@@ -212,8 +219,9 @@ async function startGenerate(initialTopic = null, initialContentType = null, exi
                 showResultModal(data.data);
             }, 1000);
         } else {
-            updateTaskStatus(taskId, 'error', data.error || '生成失败');
-            showToast(data.error || '生成失败', 'error');
+            const errMsg = data.error || data.detail || '生成失败';
+            updateTaskStatus(taskId, 'error', errMsg);
+            showToast(errMsg, 'error');
         }
     } catch (error) {
         updateTaskStatus(taskId, 'error', error.message);

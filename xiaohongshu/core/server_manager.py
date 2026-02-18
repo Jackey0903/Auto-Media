@@ -84,17 +84,23 @@ class ServerManager:
                 config.get('default_model', 'claude-sonnet-4-20250514')
             )
 
-            # 初始化所有服务器
-            initialized_count = 0
+            # 初始化所有服务器（带超时和错误隔离）
+            INIT_TIMEOUT = 120  # npx 首次下载可能较慢
+            initialized_servers = []
             for server in self.servers:
                 try:
-                    await server.initialize()
-                    initialized_count += 1
+                    await asyncio.wait_for(server.initialize(), timeout=INIT_TIMEOUT)
+                    initialized_servers.append(server)
                     logger.info(f"✅ 成功初始化服务器: {server.name}")
+                except asyncio.TimeoutError:
+                    logger.error(f"⏰ 初始化服务器 {server.name} 超时（{INIT_TIMEOUT}秒），跳过")
                 except Exception as e:
-                    logger.error(f"❌ 初始化服务器 {server.name} 失败: {e}")
+                    logger.error(f"❌ 初始化服务器 {server.name} 失败: {e}，跳过")
 
-            logger.info(f"🎉 全局 MCP 服务器初始化完成: {initialized_count}/{len(self.servers)} 个服务器已就绪")
+            # 只保留成功初始化的服务器
+            self.servers = initialized_servers
+
+            logger.info(f"🎉 全局 MCP 服务器初始化完成: {len(self.servers)}/{len(server_config['mcpServers'])} 个服务器已就绪")
 
         except Exception as e:
             logger.error(f"初始化全局服务器失败: {e}", exc_info=True)

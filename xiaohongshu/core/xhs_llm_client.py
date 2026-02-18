@@ -101,8 +101,33 @@ class Server:
                 raise ValueError(f"URL is required for streamable_http server {self.name}")
             
             try:
+                import httpx
+
+                # 自定义 httpx 客户端工厂，绕过系统代理
+                # macOS 系统代理会拦截 localhost 连接导致 502 错误
+                def no_proxy_httpx_factory(
+                    headers=None, timeout=None, auth=None
+                ):
+                    kwargs = {"follow_redirects": True, "trust_env": False}
+                    if timeout is not None:
+                        kwargs["timeout"] = timeout
+                    else:
+                        kwargs["timeout"] = httpx.Timeout(30, read=300)
+                    if headers is not None:
+                        kwargs["headers"] = headers
+                    if auth is not None:
+                        kwargs["auth"] = auth
+                    return httpx.AsyncClient(**kwargs)
+
                 # 使用 AsyncExitStack 管理连接生命周期
-                transport = await self.exit_stack.enter_async_context(streamablehttp_client(url, sse_read_timeout=None))
+                transport = await self.exit_stack.enter_async_context(
+                    streamablehttp_client(
+                        url,
+                        sse_read_timeout=300,
+                        timeout=30,
+                        httpx_client_factory=no_proxy_httpx_factory
+                    )
+                )
                 read, write, _ = transport
                 session = await self.exit_stack.enter_async_context(ClientSession(read, write, read_timeout_seconds=None))
                 await session.initialize()
@@ -180,6 +205,10 @@ class Server:
         if not self.session:
             raise RuntimeError(f"Server {self.name} not initialized")
 
+        if tool_name in {"publish_content", "publish_with_video"}:
+            retries = max(retries, 3)
+            delay = max(delay, 3.0)
+
         attempt = 0
         while attempt < retries:
             try:
@@ -192,6 +221,22 @@ class Server:
                 attempt += 1
                 logging.warning(f"Error executing tool: {e}. Attempt {attempt} of {retries}.")
                 if attempt < retries:
+                    error_text = str(e).lower()
+                    if any(token in error_text for token in [
+                        "502",
+                        "bad gateway",
+                        "cancelled",
+                        "cancel scope",
+                        "connection",
+                        "athrow",
+                    ]):
+                        logging.info(f"Detected unstable MCP session for {tool_name}, reconnecting {self.name}...")
+                        try:
+                            await self.cleanup()
+                            await self.initialize()
+                        except Exception as reconnect_error:
+                            logging.warning(f"Reconnect failed for {self.name}: {reconnect_error}")
+
                     logging.info(f"Retrying in {delay} seconds...")
                     await asyncio.sleep(delay)
                 else:
@@ -203,6 +248,7 @@ class Server:
         async with self._cleanup_lock:
             try:
                 await self.exit_stack.aclose()
+                self.exit_stack = AsyncExitStack()
                 self.session = None
                 self.stdio_context = None
             except Exception as e:

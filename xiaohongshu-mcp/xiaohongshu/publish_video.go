@@ -24,30 +24,43 @@ type PublishVideoContent struct {
 
 // NewPublishVideoAction 进入发布页并切换到"上传视频"
 func NewPublishVideoAction(page *rod.Page) (*PublishAction, error) {
-	pp := page.Timeout(300 * time.Second)
+	var lastErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		pp := page.Timeout(pageLoadTimeout)
 
-	if err := pp.Navigate(urlOfPublic); err != nil {
-		return nil, errors.Wrap(err, "导航到发布页面失败")
+		if err := pp.Navigate(urlOfPublic); err != nil {
+			lastErr = errors.Wrap(err, "导航到发布页面失败")
+			logrus.Warnf("导航视频发布页失败，重试中: attempt=%d err=%v", attempt, lastErr)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		if err := pp.WaitLoad(); err != nil {
+			logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
+		}
+		time.Sleep(1 * time.Second)
+
+		if err := pp.WaitDOMStable(1500*time.Millisecond, 0.1); err != nil {
+			logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
+		}
+		time.Sleep(500 * time.Millisecond)
+
+		if err := mustClickPublishTab(pp, "上传视频"); err != nil {
+			lastErr = errors.Wrap(err, "切换到上传视频失败")
+			logrus.Warnf("切换到上传视频失败，重试中: attempt=%d err=%v", attempt, lastErr)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		time.Sleep(500 * time.Millisecond)
+		return &PublishAction{page: pp}, nil
 	}
 
-	// 使用 WaitLoad 代替 WaitIdle（更宽松）
-	if err := pp.WaitLoad(); err != nil {
-		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(2 * time.Second)
-
-	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
-		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(1 * time.Second)
-
-	if err := mustClickPublishTab(pp, "上传视频"); err != nil {
-		return nil, errors.Wrap(err, "切换到上传视频失败")
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
-	time.Sleep(1 * time.Second)
-
-	return &PublishAction{page: pp}, nil
+	return nil, errors.New("初始化视频发布页面失败")
 }
 
 // PublishVideo 上传视频并提交

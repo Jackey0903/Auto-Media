@@ -119,12 +119,25 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ## ⚙️ 高级配置
 
 ### 修改自动发布频率
-修改 `xiaohongshu/scheduler.py`：
-```python
-schedule.every(1).hours.do(job)  # 每小时
-# schedule.every(1).days.at("10:30").do(job)  # 每天 10:30
+推荐通过环境变量配置，无需改代码。
+
+在 `docker-compose.yml` 的 `app.environment` 增加：
+
+```yaml
+- AUTO_PUBLISH_INTERVAL_HOURS=1      # 每 N 小时发布一次（默认 1）
+# - AUTO_PUBLISH_DAILY_AT=10:30      # 若设置该项，则按每天固定时间发布（优先级高于间隔）
+- AUTO_PUBLISH_RUN_ON_START=true     # 容器启动后是否立即执行一次（默认 true）
+- AUTO_PUBLISH_DOMAIN=AI             # 热点领域，如 AI/融资/论文/机器人
+- AUTO_PUBLISH_CONTENT_TYPE=general  # general 或 paper_analysis
 ```
-修改后需运行 `docker compose up -d --build` 重建生效。
+
+修改后执行：
+
+```bash
+docker compose up -d --build
+```
+
+日志文件：`xiaohongshu/logs/scheduler.log`
 
 ---
 

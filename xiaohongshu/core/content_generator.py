@@ -117,77 +117,56 @@ class ContentGenerator:
                 logger.warning(f"跳过占位符URL: {url}")
                 return None
 
+            # 已知会阻止直接下载的域名（防盗链），MCP Server 无法下载这些图片
+            blocked_domains = [
+                'freepik.com', 'smzdm.com', 'zdmimg.com', 'qiantucdn.com',
+                'qnam.smzdm.com', 'am.zdmimg.com', 'preview.qiantucdn.com',
+                'shutterstock.com', 'gettyimages.com', 'istockphoto.com',
+                'dreamstime.com', 'stock.adobe.com', '123rf.com',
+            ]
+            if any(domain in url.lower() for domain in blocked_domains):
+                logger.warning(f"⛔ 跳过防盗链域名: {url}")
+                return None
+
             # 重试机制：最多尝试2次
             for attempt in range(2):
                 try:
                     # 判断是否需要禁用SSL验证（针对已知有证书问题的CDN）
                     verify_ssl = True
-                    # 已知证书问题的域名列表
                     problematic_domains = ['9to5google.com', 'techkv.com', 'cdn.example.com']
                     if any(domain in url for domain in problematic_domains):
                         verify_ssl = False
-                        logger.info(f"对已知证书问题域名禁用SSL验证: {url}")
-
-                    # 更完善的User-Agent，模拟真实浏览器
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                        'Referer': 'https://www.google.com/'
-                    }
 
                     async with httpx.AsyncClient(
                         timeout=timeout,
                         follow_redirects=True,
-                        verify=verify_ssl
+                        verify=verify_ssl,
+                        trust_env=False
                     ) as client:
-                        # 首先尝试 HEAD 请求
-                        try:
-                            response = await client.head(url, headers=headers)
+                        # 直接用 GET 下载前 4KB 来验证（比 HEAD 更可靠，能检测到防盗链）
+                        headers = {
+                            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                            'Accept': 'image/*,*/*;q=0.8',
+                        }
+                        response = await client.get(url, headers=headers)
 
-                            # 检查状态码
-                            if response.status_code == 200:
-                                # 检查 Content-Type
-                                content_type = response.headers.get('content-type', '').lower()
-                                if content_type.startswith('image/'):
-                                    logger.info(f"✓ 图片URL有效(HEAD): {url}")
-                                    return url
-                                else:
-                                    logger.warning(f"URL不是图片类型(HEAD) (Content-Type: {content_type}): {url}")
-
-                            # 如果HEAD失败，尝试GET请求（只获取少量字节）
-                            elif response.status_code in [403, 405, 404]:
-                                logger.info(f"HEAD请求失败(状态码{response.status_code})，尝试GET请求: {url}")
-                                raise httpx.HTTPStatusError(f"HEAD failed with {response.status_code}", request=None, response=response)
+                        if response.status_code in [200, 206]:
+                            content_type = response.headers.get('content-type', '').lower()
+                            if content_type.startswith('image/'):
+                                logger.info(f"✓ 图片URL有效(GET): {url}")
+                                return url
                             else:
-                                logger.warning(f"图片URL返回非200状态码 {response.status_code}: {url}")
-
-                        except (httpx.HTTPStatusError, httpx.RequestError):
-                            # HEAD失败，尝试GET请求（只读取前1KB来验证）
-                            logger.info(f"尝试GET请求验证(前1KB): {url}")
-                            headers['Range'] = 'bytes=0-1023'  # 只请求前1KB
-
-                            response = await client.get(url, headers=headers)
-
-                            if response.status_code in [200, 206]:  # 206 = Partial Content
-                                # 检查 Content-Type
-                                content_type = response.headers.get('content-type', '').lower()
-                                if content_type.startswith('image/'):
-                                    logger.info(f"✓ 图片URL有效(GET): {url}")
+                                image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico']
+                                if any(ext in url.lower() for ext in image_extensions):
+                                    logger.info(f"✓ 图片URL有效(按扩展名): {url}")
                                     return url
-                                else:
-                                    # 即使Content-Type不对，如果URL看起来像图片，也接受
-                                    image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico']
-                                    if any(url.lower().endswith(ext) or ext in url.lower() for ext in image_extensions):
-                                        logger.info(f"✓ 图片URL有效(按扩展名): {url}")
-                                        return url
-                                    logger.warning(f"URL不是图片类型(GET) (Content-Type: {content_type}): {url}")
-                            else:
-                                logger.warning(f"图片URL返回非200/206状态码 {response.status_code}: {url}")
+                                logger.warning(f"URL不是图片类型 (Content-Type: {content_type}): {url}")
+                        else:
+                            logger.warning(f"图片URL返回状态码 {response.status_code}: {url}")
 
-                    # 如果到这里都没返回，说明验证失败，进入重试
-                    if attempt < 1:  # 还有重试机会
-                        await asyncio.sleep(1 * (attempt + 1))  # 指数退避: 1s, 2s
+                    # 验证失败，重试
+                    if attempt < 1:
+                        await asyncio.sleep(1)
                         logger.info(f"重试验证URL (第{attempt + 2}次): {url}")
                         continue
                     else:
@@ -196,7 +175,7 @@ class ContentGenerator:
                 except httpx.TimeoutException:
                     if attempt < 1:
                         logger.warning(f"图片URL访问超时(第{attempt + 1}次)，准备重试: {url}")
-                        await asyncio.sleep(1 * (attempt + 1))
+                        await asyncio.sleep(1)
                         continue
                     else:
                         logger.warning(f"图片URL访问超时(已重试): {url}")
@@ -204,7 +183,7 @@ class ContentGenerator:
                 except Exception as e:
                     if attempt < 1:
                         logger.warning(f"图片URL验证失败(第{attempt + 1}次) {url}: {e}，准备重试")
-                        await asyncio.sleep(1 * (attempt + 1))
+                        await asyncio.sleep(1)
                         continue
                     else:
                         logger.warning(f"图片URL验证失败(已重试) {url}: {e}")
@@ -285,7 +264,7 @@ class ContentGenerator:
                     f"   - 结合具体数据、案例和专家观点增强可信度\n"
                     f"   - 语言通俗易懂，避免过于技术化的表述\n"
                     f"2. 文章长度控制在800-1200字，适合社交媒体阅读。\n"
-                    f"3. 准备5-7张高质量配图，必须是真实的网络图片链接（HTTPS地址）。"
+                    f"3. 准备8-10张高质量配图，必须是真实的网络图片链接（HTTPS地址）。多准备几张备选，部分链接可能无法下载会被过滤。避免使用freepik.com、shutterstock.com、smzdm.com等有防盗链的网站图片，优先使用 img.alicdn.com 等可靠CDN的图片。"
                 ),
                 "depends on": ["step2"]
             },
@@ -297,8 +276,8 @@ class ContentGenerator:
                     "   - 标题控制在20字以内，突出亮点和价值\n"
                     "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过1000字, 禁止使用“#”\n"
                     "   - 提取5个精准的话题标签到tags数组\n"
-                    "   - **图片要求**: 必须提供5-7张图片。为了确保有足够的有效图片，请在搜索阶段获取至少10张图片备选\n"
-                    "   - 图片类型：实物图、效果图、数据图表等，避免纯文字图片\n"
+                    "   - **图片要求**: 提供8-10张图片URL备选（系统会验证并自动筛选出4-5张有效图片）。避免使用freepik.com、shutterstock.com、smzdm.com等有防盗链的网站图片\n"
+                    "   - 图片类型：实物图、效果图、数据图表等，避免纯文字图片，优先使用 img.alicdn.com 等可靠CDN的图片\n"
                     "2. 整理成标准的JSON格式（仅在内部使用，不输出）：\n"
                     "   {\n"
                     "     \"title\": \"吸引人的标题（20字以内）\",\n"
@@ -363,13 +342,27 @@ class ContentGenerator:
                 self.config.get('default_model', 'claude-sonnet-4-20250514')
             )
 
-            # 初始化所有服务器
+            # 初始化所有服务器（带超时和错误隔离）
+            # npx 首次下载可能较慢，给 120 秒超时
+            INIT_TIMEOUT = 120
+            initialized_servers = []
             for server in self.servers:
                 try:
-                    await server.initialize()
-                    logger.info(f"成功初始化服务器: {server.name}")
+                    await asyncio.wait_for(server.initialize(), timeout=INIT_TIMEOUT)
+                    logger.info(f"✅ 成功初始化服务器: {server.name}")
+                    initialized_servers.append(server)
+                except asyncio.TimeoutError:
+                    logger.error(f"⏰ 初始化服务器 {server.name} 超时（{INIT_TIMEOUT}秒），跳过")
                 except Exception as e:
-                    logger.error(f"初始化服务器 {server.name} 失败: {e}")
+                    logger.error(f"❌ 初始化服务器 {server.name} 失败: {e}，跳过")
+
+            # 只保留成功初始化的服务器
+            self.servers = initialized_servers
+            
+            if not self.servers:
+                raise RuntimeError("所有 MCP 服务器初始化均失败，请检查网络和配置")
+            
+            logger.info(f"MCP 服务器初始化完成: {len(self.servers)}/{len(server_config['mcpServers'])} 个成功")
 
         except Exception as e:
             logger.error(f"初始化服务器失败: {e}")
@@ -1079,9 +1072,9 @@ class ContentGenerator:
                                         原标题：
                                         {title_text}
                                         """
-                                        messages = [{"role": "user", "content": shorten_title_prompt}]
-                                        response = self.llm_client.chat(messages)
-                                        shortened_title = response.choices[0].message.content.strip()
+                                        shorten_messages = [{"role": "user", "content": shorten_title_prompt}]
+                                        shorten_response = self.llm_client.chat(shorten_messages)
+                                        shortened_title = shorten_response.choices[0].message.content.strip()
                                         
                                         if len(shortened_title) <= 20:
                                             arguments["title"] = shortened_title
@@ -1108,9 +1101,9 @@ class ContentGenerator:
                                         原文：
                                         {content_text}
                                         """
-                                        messages = [{"role": "user", "content": shorten_prompt}]
-                                        response = self.llm_client.chat(messages)
-                                        shortened_content = response.choices[0].message.content.strip()
+                                        shorten_messages = [{"role": "user", "content": shorten_prompt}]
+                                        shorten_response = self.llm_client.chat(shorten_messages)
+                                        shortened_content = shorten_response.choices[0].message.content.strip()
                                         
                                         if len(shortened_content) < 1000:
                                             arguments["content"] = shortened_content
@@ -1123,27 +1116,31 @@ class ContentGenerator:
                                         arguments["content"] = content_text[:995] + "..."
 
                                 # 2. 验证图片URL
-                                if "images" in arguments:
-                                    # 确保 original_images 是列表，处理 {"images": null} 的情况
-                                    original_images = arguments.get("images") or []
-                                    logger.info(f"🔍 开始验证 {len(original_images)} 个图片URL...")
+                                original_images = arguments.get("images") or []
+                                if not isinstance(original_images, list):
+                                    original_images = [original_images]
+                                logger.info(f"🔍 开始验证 {len(original_images)} 个图片URL...")
 
                                 valid_images = await self.validate_image_urls(original_images)
 
                                 if len(valid_images) < len(original_images):
                                     logger.warning(f"⚠️ 部分图片URL无效: {len(original_images) - len(valid_images)} 个被过滤")
 
+                                # 目标: 4-5 张有效图片
+                                TARGET_MIN_IMAGES = 4
+                                TARGET_MAX_IMAGES = 5
+
                                 if len(valid_images) == 0:
-                                    tool_result = "错误: 所有图片URL均无效，无法发布。请确保图片链接可访问。"
+                                    tool_result = "错误: 所有图片URL均无效，无法发布。请使用tavily_search重新搜索图片（include_images=true），优先使用 img.alicdn.com 等可靠CDN的图片链接，避免使用freepik、shutterstock等有防盗链的网站图片。"
                                     logger.error("❌ 图片验证失败: 没有有效的图片URL")
-                                    # 不执行实际的发布调用
-                                elif len(valid_images) < 1:
-                                    tool_result = f"错误: 有效图片数量不足({len(valid_images)}个)，小红书至少需要1张图片才能发布。"
-                                    logger.error(f"❌ 图片数量不足: 只有 {len(valid_images)} 个有效图片")
+                                elif len(valid_images) < TARGET_MIN_IMAGES:
+                                    tool_result = f"错误: 有效图片只有{len(valid_images)}张（需要至少{TARGET_MIN_IMAGES}张）。请使用tavily_search搜索更多图片（include_images=true），再次调用publish_content，将新找到的图片URL和已有的有效图片合并。已有的有效图片: {valid_images}"
+                                    logger.warning(f"⚠️ 有效图片不足: {len(valid_images)}/{TARGET_MIN_IMAGES}，要求LLM补充")
                                 else:
-                                    # 更新参数中的图片列表为验证后的有效URL
-                                    arguments["images"] = valid_images
-                                    logger.info(f"✅ 图片验证通过，使用 {len(valid_images)} 个有效图片URL")
+                                    # 有效图片足够，取前 TARGET_MAX_IMAGES 张
+                                    selected_images = valid_images[:TARGET_MAX_IMAGES]
+                                    arguments["images"] = selected_images
+                                    logger.info(f"✅ 图片选择完成，使用 {len(selected_images)} 张有效图片（共验证通过 {len(valid_images)} 张）")
 
                                     # 执行发布工具
                                     tool_result = None

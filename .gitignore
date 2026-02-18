@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment
+.env
+.venv/
+venv/
+
+# Logs
+*.log
+xiaohongshu/logs/
+
+# Runtime cache data (keep cache_manager.py source)
+xiaohongshu/cache/task_history.json
+xiaohongshu/cache/__pycache__/
+
+# Sensitive files - DO NOT commit API keys or cookies
+xiaohongshu/config/app_config.json
+xiaohongshu-mcp-darwin-arm64/cookies.json
+xiaohongshu-mcp/cookies/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docker runtime
+xiaohongshu-mcp/chrome_data/

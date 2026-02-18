@@ -1,0 +1,7 @@
+{
+    "llm_api_key": "your-api-key-here",
+    "openai_base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "default_model": "qwen-plus",
+    "tavily_api_keys": "your-tavily-key-here",
+    "jina_api_key": ""
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -24,6 +25,21 @@ type XiaohongshuService struct{}
 // NewXiaohongshuService 创建小红书服务实例
 func NewXiaohongshuService() *XiaohongshuService {
 	return &XiaohongshuService{}
+}
+
+func getEnvInt(name string, defaultValue int) int {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		logrus.Warnf("环境变量 %s=%s 非法，使用默认值 %d", name, value, defaultValue)
+		return defaultValue
+	}
+
+	return parsed
 }
 
 // PublishRequest 发布请求
@@ -216,7 +232,7 @@ func (s *XiaohongshuService) PublishContent(ctx context.Context, req *PublishReq
 		ScheduleTime: scheduleTime,
 	}
 
-	// 执行发布
+	// 执行发布（带重试）
 	if err := s.publishContent(ctx, content); err != nil {
 		logrus.Errorf("发布内容失败: title=%s %v", content.Title, err)
 		return nil, err
@@ -240,6 +256,37 @@ func (s *XiaohongshuService) processImages(images []string) ([]string, error) {
 
 // publishContent 执行内容发布
 func (s *XiaohongshuService) publishContent(ctx context.Context, content xiaohongshu.PublishImageContent) error {
+	maxRetries := getEnvInt("XHS_PUBLISH_MAX_RETRIES", 2)
+	attemptTimeoutSeconds := getEnvInt("XHS_PUBLISH_TIMEOUT_SECONDS", 180)
+
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		attemptCtx, cancel := context.WithTimeout(context.Background(), time.Duration(attemptTimeoutSeconds)*time.Second)
+		err := s.publishContentOnce(attemptCtx, content)
+		cancel()
+		if err == nil {
+			if attempt > 1 {
+				logrus.Infof("发布重试成功: attempt=%d", attempt)
+			}
+			return nil
+		}
+
+		lastErr = err
+		logrus.Warnf("发布尝试失败: attempt=%d/%d err=%v", attempt, maxRetries, err)
+
+		if attempt < maxRetries {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("发布失败，已重试%d次: %w", maxRetries, lastErr)
+	}
+
+	return fmt.Errorf("发布失败，原因未知")
+}
+
+func (s *XiaohongshuService) publishContentOnce(ctx context.Context, content xiaohongshu.PublishImageContent) error {
 	b := newBrowser()
 	defer b.Close()
 

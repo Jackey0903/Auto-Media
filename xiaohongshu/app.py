@@ -300,7 +300,7 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
             raise HTTPException(status_code=400, detail="内容类型必须是 'general' 或 'paper_analysis'")
 
         # 检查配置是否完整
-        config = config_manager.load_config()
+        config = config_manager.load_config(for_display=False)
         if not config.get('llm_api_key') or not config.get('xhs_mcp_url'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 
@@ -366,7 +366,11 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
         raise
     except Exception as e:
         logger.error(f"生成和发布失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        # 返回 JSON 响应而非让 FastAPI 返回纯文本 500
+        return JSONResponse(
+            status_code=500,
+            content={'success': False, 'error': str(e), 'detail': str(e)}
+        )
 
 
 @app.get("/api/status/{task_id}")
@@ -451,7 +455,7 @@ async def fetch_trending_topics(request_data: FetchTrendingTopicsRequest = None)
     """获取今日热点新闻主题"""
     try:
         # 检查配置是否完整
-        config = config_manager.load_config()
+        config = config_manager.load_config(for_display=False)
         if not config.get('llm_api_key'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 
@@ -481,7 +485,10 @@ async def fetch_trending_topics(request_data: FetchTrendingTopicsRequest = None)
         raise
     except Exception as e:
         logger.error(f"获取热点主题失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={'success': False, 'error': str(e), 'detail': str(e)}
+        )
 
 
 @app.post("/api/fetch-topics-from-url")
@@ -494,7 +501,7 @@ async def fetch_topics_from_url(request_data: FetchTopicsFromUrlRequest) -> Dict
             raise HTTPException(status_code=400, detail="请提供URL")
 
         # 检查配置是否完整
-        config = config_manager.load_config()
+        config = config_manager.load_config(for_display=False)
         if not config.get('llm_api_key'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 
@@ -521,7 +528,10 @@ async def fetch_topics_from_url(request_data: FetchTopicsFromUrlRequest) -> Dict
         raise
     except Exception as e:
         logger.error(f"从URL提取主题失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={'success': False, 'error': str(e), 'detail': str(e)}
+        )
 
 
 @app.post("/api/batch-generate-and-publish")
@@ -539,7 +549,7 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
             raise HTTPException(status_code=400, detail="内容类型必须是 'general' 或 'paper_analysis'")
 
         # 检查配置是否完整
-        config = config_manager.load_config()
+        config = config_manager.load_config(for_display=False)
         if not config.get('llm_api_key') or not config.get('xhs_mcp_url'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 

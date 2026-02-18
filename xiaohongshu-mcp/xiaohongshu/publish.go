@@ -30,39 +30,47 @@ type PublishAction struct {
 
 const (
 	urlOfPublic = `https://creator.xiaohongshu.com/publish/publish?source=official`
+	pageLoadTimeout = 90 * time.Second
 )
 
 func NewPublishImageAction(page *rod.Page) (*PublishAction, error) {
+	var lastErr error
+	for attempt := 1; attempt <= 2; attempt++ {
+		pp := page.Timeout(pageLoadTimeout)
 
-	pp := page.Timeout(300 * time.Second)
+		if err := pp.Navigate(urlOfPublic); err != nil {
+			lastErr = errors.Wrap(err, "导航到发布页面失败")
+			logrus.Warnf("导航失败，重试中: attempt=%d err=%v", attempt, lastErr)
+			time.Sleep(2 * time.Second)
+			continue
+		}
 
-	// 使用更稳健的导航和等待策略
-	if err := pp.Navigate(urlOfPublic); err != nil {
-		return nil, errors.Wrap(err, "导航到发布页面失败")
+		if err := pp.WaitLoad(); err != nil {
+			logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
+		}
+		time.Sleep(1 * time.Second)
+
+		if err := pp.WaitDOMStable(1500*time.Millisecond, 0.1); err != nil {
+			logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
+		}
+		time.Sleep(500 * time.Millisecond)
+
+		if err := mustClickPublishTab(pp, "上传图文"); err != nil {
+			lastErr = err
+			logrus.Warnf("点击上传图文 TAB 失败，重试中: attempt=%d err=%v", attempt, err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		time.Sleep(500 * time.Millisecond)
+		return &PublishAction{page: pp}, nil
 	}
 
-	// 等待页面加载，使用 WaitLoad 代替 WaitIdle（更宽松）
-	if err := pp.WaitLoad(); err != nil {
-		logrus.Warnf("等待页面加载出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(2 * time.Second)
-
-	// 等待页面稳定
-	if err := pp.WaitDOMStable(time.Second, 0.1); err != nil {
-		logrus.Warnf("等待 DOM 稳定出现问题: %v，继续尝试", err)
-	}
-	time.Sleep(1 * time.Second)
-
-	if err := mustClickPublishTab(pp, "上传图文"); err != nil {
-		logrus.Errorf("点击上传图文 TAB 失败: %v", err)
-		return nil, err
+	if lastErr != nil {
+		return nil, lastErr
 	}
 
-	time.Sleep(1 * time.Second)
-
-	return &PublishAction{
-		page: pp,
-	}, nil
+	return nil, errors.New("初始化发布页面失败")
 }
 
 func (p *PublishAction) Publish(ctx context.Context, content PublishImageContent) error {
@@ -113,7 +121,13 @@ func clickEmptyPosition(page *rod.Page) {
 }
 
 func mustClickPublishTab(page *rod.Page, tabname string) error {
-	page.MustElement(`div.upload-content`).MustWaitVisible()
+	uploadRoot, err := page.Timeout(20 * time.Second).Element(`div.upload-content`)
+	if err != nil {
+		return errors.Wrap(err, "未找到发布容器")
+	}
+	if err := uploadRoot.WaitVisible(); err != nil {
+		return errors.Wrap(err, "发布容器不可见")
+	}
 
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
