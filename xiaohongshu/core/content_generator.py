@@ -266,7 +266,7 @@ class ContentGenerator:
                     f"   - 结合具体数据、案例和专家观点增强可信度\n"
                     f"   - 语言通俗易懂，避免过于技术化的表述\n"
                     f"2. 文章长度控制在800-1200字，适合社交媒体阅读。\n"
-                    f"3. 准备8-10张高质量配图，必须是真实的网络图片链接（HTTPS地址）。多准备几张备选，部分链接可能无法下载会被过滤。**优先使用无防盗链的图片源**（如 img.alicdn.com、pic.rmb.bdstatic.com、simg.baai.ac.cn 等），避免使用 gtimg.com、sinaimg.cn、mmbiz.qpic.cn、freepik.com、shutterstock.com 等有防盗链的网站。"
+                    f"3. 准备8-10张高质量配图，必须是从搜索结果中找到的真实图片链接（HTTPS地址），绝对不能自己编造URL。多准备几张备选，部分链接可能无法下载会被过滤。避免使用 gtimg.com、sinaimg.cn、mmbiz.qpic.cn、freepik.com、shutterstock.com 等有防盗链的网站图片。"
                 ),
                 "depends on": ["step2"]
             },
@@ -278,7 +278,7 @@ class ContentGenerator:
                     "   - 标题控制在20字以内，突出亮点和价值\n"
                     "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过1000字, 禁止使用“#”\n"
                     "   - 提取5个精准的话题标签到tags数组\n"
-                    "   - **图片要求**: 提供8-10张图片URL备选（系统会验证并筛选有效图片）。**优先使用 img.alicdn.com、pic.rmb.bdstatic.com、simg.baai.ac.cn 等无防盗链的图片源**，避免 gtimg.com、sinaimg.cn、mmbiz.qpic.cn 等有防盗链的网站\n"
+                    "   - **图片要求**: 提供8-10张图片URL备选，必须是从搜索结果中找到的真实图片链接，绝对不能自己编造。避免 gtimg.com、sinaimg.cn、mmbiz.qpic.cn、freepik.com、shutterstock.com 等有防盗链的网站\n"
                     "   - 图片类型：实物图、效果图、数据图表等，避免纯文字图片\n"
                     "2. 整理成标准的JSON格式（仅在内部使用，不输出）：\n"
                     "   {\n"
@@ -1132,7 +1132,7 @@ class ContentGenerator:
                                 TARGET_MAX_IMAGES = 5
 
                                 if len(valid_images) == 0:
-                                    tool_result = "错误: 所有图片URL均无效，无法发布。请使用tavily_search重新搜索图片（include_images=true），优先从中国互联网搜索（img.alicdn.com、pic.rmb.bdstatic.com、inews.gtimg.com等国内CDN），避免国外图片网站。"
+                                    tool_result = "错误: 所有图片URL均无效，无法发布。请使用tavily_search重新搜索图片（include_images=true），使用搜索结果中的真实图片URL，不要自己编造。避免 gtimg.com、sinaimg.cn、freepik.com 等有防盗链的网站。"
                                     logger.error("❌ 图片验证失败: 没有有效的图片URL")
                                 else:
                                     # 有效图片足够，取前 TARGET_MAX_IMAGES 张
