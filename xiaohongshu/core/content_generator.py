@@ -1091,31 +1091,14 @@ class ContentGenerator:
                                 # 1. 检查内容长度限制 (小红书限制1000字)
                                 content_text = arguments.get("content", "")
                                 if len(content_text) > 1000:
-                                    logger.warning(f"⚠️ 内容长度 ({len(content_text)}) 超过限制 (1000)，正在尝试缩短...")
-                                    try:
-                                        shorten_prompt = f"""
-                                        请将以下小红书文案缩短到 950 字以内。
-                                        要求：
-                                        1. 保持原意和语气
-                                        2. 保留所有emoji和关键信息
-                                        3. 只输出缩短后的正文，不要包含任何解释
-                                        
-                                        原文：
-                                        {content_text}
-                                        """
-                                        shorten_messages = [{"role": "user", "content": shorten_prompt}]
-                                        shorten_response = self.llm_client.chat(shorten_messages)
-                                        shortened_content = shorten_response.choices[0].message.content.strip()
-                                        
-                                        if len(shortened_content) < 1000:
-                                            arguments["content"] = shortened_content
-                                            logger.info(f"✅ 内容已缩短至 {len(shortened_content)} 字")
-                                        else:
-                                            logger.warning(f"⚠️ 缩短后仍然过长 ({len(shortened_content)})，强制截断")
-                                            arguments["content"] = shortened_content[:995] + "..."
-                                    except Exception as e:
-                                        logger.error(f"内容缩短失败: {e}")
-                                        arguments["content"] = content_text[:995] + "..."
+                                    logger.warning(f"⚠️ 内容长度 ({len(content_text)}) 超过限制 (1000)，自动截断...")
+                                    # 在995字前找到最后一个换行符，保持段落完整
+                                    truncated = content_text[:995]
+                                    last_newline = truncated.rfind('\n')
+                                    if last_newline > 800:
+                                        truncated = truncated[:last_newline]
+                                    arguments["content"] = truncated
+                                    logger.info(f"✅ 内容已截断至 {len(truncated)} 字")
 
                                 # 2. 验证图片URL
                                 original_images = arguments.get("images") or []
