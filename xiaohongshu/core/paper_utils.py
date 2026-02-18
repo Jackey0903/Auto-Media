@@ -13,27 +13,28 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class PaperUtils:
-    def __init__(self, download_dir: str = "cache/papers", image_dir: str = "cache/paper_images"):
+    def __init__(self, download_dir: str = "cache/papers", image_dir: str = "cache/paper_images", tavily_api_key: str = None):
         """初始化论文工具类"""
         self.download_dir = download_dir
         self.image_dir = image_dir
+        self.tavily_api_key = tavily_api_key
         
         # 确保目录存在
         os.makedirs(self.download_dir, exist_ok=True)
         os.makedirs(self.image_dir, exist_ok=True)
         
-        # Arxiv Client
+        # Arxiv Client - 增加延迟以避免 429
         self.client = arxiv.Client(
-            page_size=10,
-            delay_seconds=3.0,
-            num_retries=3
+            page_size=5,  # 减少每页数量
+            delay_seconds=10.0, # 增加延迟到 10s
+            num_retries=5 # 增加重试次数
         )
 
-    def search_latest_papers(self, query: str = "artificial intelligence", max_results: int = 5) -> List[Dict[str, Any]]:
-        """搜索最新的ArXiv论文"""
+    def search_latest_papers(self, query: str = "cat:cs.AI", max_results: int = 5) -> List[Dict[str, Any]]:
+        """搜索最新的ArXiv论文 (带重试和Fallback)"""
         logger.info(f"正在搜索ArXiv论文: {query}")
         
-        # 构造搜索查询，按提交时间降序
+        # 构造搜索查询
         search = arxiv.Search(
             query=query,
             max_results=max_results,
@@ -56,9 +57,24 @@ class PaperUtils:
                 }
                 papers.append(paper_info)
                 logger.info(f"找到论文: {r.title} ({r.published})")
+        
         except Exception as e:
             logger.error(f"搜索ArXiv失败: {e}")
+            if "429" in str(e):
+                logger.warning("ArXiv API 速率限制 (429)，尝试使用备用查询或降级...")
+                # 这里可以实现更复杂的 Fallback，比如切换到 Tavily 或者休眠更久
+                # 暂时返回空，由上层处理
+            pass
         
+        if not papers and "cat:" in query:
+             # 如果特定分类搜索失败，尝试通用搜索
+             logger.info("特定分类搜索无结果，尝试通用搜索...")
+             try:
+                 fallback_query = query.split(":")[1] if ":" in query else "AI"
+                 return self.search_latest_papers(query=fallback_query, max_results=max_results)
+             except:
+                 pass
+
         return papers
 
     def download_and_process_paper(self, pdf_url: str, paper_id: str = None) -> List[str]:
