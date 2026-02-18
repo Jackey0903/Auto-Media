@@ -125,6 +125,7 @@ class ContentGenerator:
                 'dreamstime.com', 'stock.adobe.com', '123rf.com',
                 # 国内有防盗链的CDN - Python验证能通过但Go MCP Server下载会403
                 'inews.gtimg.com', 'gtimg.com', 'sinaimg.cn', 'mmbiz.qpic.cn',
+                'xinhuanet.com', 'cctv.com', 'thepaper.cn', '36kr.com', 'geekpark.net',
             ]
             if any(domain in url.lower() for domain in blocked_domains):
                 logger.warning(f"⛔ 跳过防盗链域名: {url}")
