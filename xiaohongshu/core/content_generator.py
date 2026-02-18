@@ -239,6 +239,8 @@ class ContentGenerator:
 
         if content_type == "paper_analysis":
             return self.get_paper_analysis_plan(user_topic)
+        if content_type == "zhihu":
+            return self.get_zhihu_plan(user_topic)
         
         # 定义更严格的“去AI味”约束
         style_guide = (
@@ -253,9 +255,9 @@ class ContentGenerator:
                 "id": "step1",
                 "title": f"素材搜集：{user_topic}",
                 "description": (
-                    f"请搜索关于「{user_topic}」的最新信息。\n"
+                    f"请搜索关于「{user_topic}」的**最新**信息（重点关注最近24-48小时内的新闻）。\n"
                     f"重点寻找：\n"
-                    f"1. **具体发生的事件/更新**（作为故事的起因）。\n"
+                    f"1. **刚刚发生的具体事件/更新**（必须是当下的热点，拒绝旧闻）。\n"
                     f"2. **网友/用户的真实评价**（好评或吐槽均可，用于增加真实感）。\n"
                     f"3. **争议点或反直觉的点**（用于制造文章的张力）。\n"
                     f"4. 搜集10张以上相关图片链接（HTTPS），确保有图可用。"
@@ -292,6 +294,58 @@ class ContentGenerator:
                     "5. **动作**：调用 publish_content 工具发布。"
                 ),
                 "depends on": ["step1", "step2"]
+            }
+        ]
+
+    def get_zhihu_plan(self, user_topic: str) -> List[Dict[str, Any]]:
+        """生成知乎回答专用工作流（深度专业版）"""
+        
+        zhihu_style = (
+            "1. **开头**：直接回答问题，不要客套（如'这是个好问题'）。不用'作为一个xx'。可以先给结论，再展开。\n"
+            "2. **正文**：可以分点，但每点要有实质内容，不要只是列大纲。举例子比讲道理有效。别堆砌术语。\n"
+            "3. **结尾**：不用'希望有帮助'，总结核心观点或承认局限性。\n"
+            "4. **禁止**：'首先我们要明确一个概念'、'从几个方面分析'、'相信通过以上分析'。\n"
+            "5. **鼓励**：用'我认为'、'在我看来'，用个人经历佐证。"
+        )
+
+        return [
+            {
+                "id": "step1_zhihu",
+                "title": f"深度调研：{user_topic}",
+                "description": (
+                    f"搜索关于「{user_topic}」的深度信息和多方观点。\n"
+                    f"重点寻找：\n"
+                    f"1. **核心事实与数据**：不仅是新闻，还要有背景数据或技术原理。\n"
+                    f"2. **不同立场的观点**：支持方、反对方、中立方的看法。\n"
+                    f"3. **专业深度分析**：行业报告、专家解读、技术文档。"
+                ),
+                "depends on": []
+            },
+            {
+                "id": "step2_write_zhihu",
+                "title": "撰写知乎回答",
+                "description": (
+                    f"基于调研结果，以知乎答主的身份写一篇深度回答。\n"
+                    f"**核心要求：专业、有深度、有观点、拒绝水文。**\n\n"
+                    f"{zhihu_style}\n\n"
+                    f"写作建议：\n"
+                    f"- 像一个行业老兵在分享经验，而不是AI在背书。\n"
+                    f"- 每一个论点后面最好都要跟一个具体的例子或数据。\n"
+                    f"- 保持逻辑的连贯性，但不要用僵硬的连接词。\n"
+                    f"- 字数控制在 1000-2000 字。"
+                ),
+                "depends on": ["step1_zhihu"]
+            },
+            {
+                "id": "step3_publish_zhihu",
+                "title": "发布知乎回答",
+                "description": (
+                    "1. **标题**：知乎通常是在问题下回答，如果是写文章，标题要专业且引发思考。\n"
+                    "2. **正文**：进行最终润色，确保没有AI味（再次检查禁止词汇）。\n"
+                    "3. **图片**：插入3-5张有信息增量的图表或配图。\n"
+                    "4. **发布**：调用 publish_content 发布。"
+                ),
+                "depends on": ["step1_zhihu", "step2_write_zhihu"]
             }
         ]
 
