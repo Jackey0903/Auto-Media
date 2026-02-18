@@ -2,6 +2,7 @@ import os
 import time
 import logging
 import asyncio
+import argparse
 
 import schedule
 from dotenv import load_dotenv
@@ -53,19 +54,47 @@ def get_config_from_env() -> dict:
 
 
 def get_scheduler_settings() -> dict:
-    """读取调度参数"""
-    interval_hours = int(os.getenv("AUTO_PUBLISH_INTERVAL_HOURS", "1"))
-    daily_at = os.getenv("AUTO_PUBLISH_DAILY_AT", "").strip()
-    run_on_start = os.getenv("AUTO_PUBLISH_RUN_ON_START", "true").lower() in {"1", "true", "yes", "y"}
-    domain = os.getenv("AUTO_PUBLISH_DOMAIN", "AI").strip() or "AI"
-    content_type = os.getenv("AUTO_PUBLISH_CONTENT_TYPE", "general").strip() or "general"
+    """读取调度参数 (CLI > ENV > Default)"""
+    parser = argparse.ArgumentParser(description="XiaoHongShu Auto Publisher")
+    parser.add_argument("--mode", choices=["general", "paper_analysis", "zhihu"], 
+                        help="Content generation mode", default=None)
+    parser.add_argument("--interval", type=int, help="Interval in hours", default=None)
+    parser.add_argument("--at", help="Daily run time (e.g. 10:30)", default=None)
+    parser.add_argument("--run-now", action="store_true", help="Run immediately on start")
+    
+    args, unknown = parser.parse_known_args()
 
-    if content_type not in {"general", "paper_analysis"}:
-        logger.warning(f"AUTO_PUBLISH_CONTENT_TYPE={content_type} 非法，回退为 general")
+    # 1. CLI Arguments
+    if args.mode:
+        content_type = args.mode
+    else:
+        content_type = os.getenv("AUTO_PUBLISH_CONTENT_TYPE", "general").strip() or "general"
+
+    if args.interval:
+        interval_hours = args.interval
+    else:
+        interval_hours = int(os.getenv("AUTO_PUBLISH_INTERVAL_HOURS", "1"))
+
+    if args.at:
+        daily_at = args.at
+    else:
+        daily_at = os.getenv("AUTO_PUBLISH_DAILY_AT", "").strip()
+
+    if args.run_now:
+        run_on_start = True
+    else:
+        run_on_start = os.getenv("AUTO_PUBLISH_RUN_ON_START", "true").lower() in {"1", "true", "yes", "y"}
+
+    domain = os.getenv("AUTO_PUBLISH_DOMAIN", "AI").strip() or "AI"
+
+    # Validation
+    valid_modes = {"general", "paper_analysis", "zhihu"}
+    if content_type not in valid_modes:
+        logger.warning(f"Mode {content_type} invalid, falling back to general")
         content_type = "general"
 
     if interval_hours < 1:
-        logger.warning("AUTO_PUBLISH_INTERVAL_HOURS 必须 >= 1，回退为 1")
+        logger.warning("Interval must be >= 1, falling back to 1")
         interval_hours = 1
 
     return {

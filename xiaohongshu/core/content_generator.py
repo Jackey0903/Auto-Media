@@ -12,6 +12,7 @@ import httpx
 from typing import Any, Dict, List, Optional
 from core.xhs_llm_client import Configuration, Server, LLMClient, Tool
 from core.server_manager import server_manager
+from core.paper_utils import PaperUtils
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,9 @@ class ContentGenerator:
             config: 应用配置字典
         """
         self.config = config
-        self.servers = []
-        self.llm_client = None
+        self.servers: List[Server] = []
+        self.llm_client: Optional[LLMClient] = None
+        self.paper_utils: Optional[PaperUtils] = None  # 论文工具实例
         self.context = None
         self.context_file = None
         self._owns_context_file = False
@@ -352,43 +354,54 @@ class ContentGenerator:
 
     def get_paper_analysis_plan(self, user_topic: str) -> List[Dict[str, Any]]:
         """生成论文分析专用工作流（通俗解读版）"""
+        
+        paper_style_guide = (
+            "1. **禁止八股文**：严禁使用'摘要-方法-实验-结论'的标准学术结构。必须用'痛点-高光-解密-看法'的叙事逻辑。\n"
+            "2. **禁止列表**：严禁使用 Markdown 列表符号（如 1. 2. 3. 或 - ）。必须是自然的段落文本。\n"
+            "3. **口语化**：把论文翻译成'人话'。假设读者是大一学生，多用比喻，少用术语。\n"
+            "4. **情绪注入**：对论文的创新点要有'惊叹'或'怀疑'的态度，不要冷冰冰的复述。\n"
+            "5. **emoji**：全篇限制 3-5 个，禁止结构化 emoji。"
+        )
+
         return [
             {
                 "id": "step1_paper",
                 "title": f"论文检索：{user_topic}",
                 "description": (
-                    f"搜索「{user_topic}」相关的最新高质量论文（arXiv, CVPR, Nature等）。\n"
-                    f"寻找那些**确实解决了具体问题**或**效果惊人**的研究。\n"
-                    f"搜集论文链接、核心图表（架构图、效果对比图）的图片链接。"
+                    f"请使用专门的学术搜索工具，寻找关于「{user_topic}」的最新高质量论文（重点关注本周或本月的 arXiv, CVPR, ICCV, NeurIPS）。\n"
+                    f"**筛选标准**：\n"
+                    f"1. **新**：必须是最近发表或更新的。\n"
+                    f"2. **有热度**：引用量高，或者在 Twitter/Reddit 上有讨论的。\n"
+                    f"3. **有图**：确保能获取到 PDF 原文链接（用于后续提取图片）。\n"
+                    f"输出必须包含：论文标题、作者、ArXiv ID、PDF 链接、摘要。"
                 ),
                 "depends on": []
             },
             {
                 "id": "step2_analysis",
-                "title": "通俗化解读",
+                "title": "通俗化解读（深度去水）",
                 "description": (
-                    "请将这篇论文“翻译”成人话。\n"
-                    "**严禁使用 '摘要-方法-实验-结论' 的八股文结构。**\n\n"
-                    "请按照以下逻辑进行**连续的段落写作**：\n"
-                    "1. **背景/痛点**：以前大家做这个东西有什么痛点？（比如：以前的生成视频都很假，而且很慢...）\n"
-                    "2. **高光时刻**：这篇论文究竟做到了什么？（比如：现在居然能实时生成了，而且连毛孔都看得清...）\n"
-                    "3. **原理解密（简单说）**：它大概是怎么做到的？用比喻的修辞手法，不要堆砌术语。\n"
-                    "4. **我的看法**：这个技术未来会对我们有什么影响？\n\n"
-                    "要求：\n"
-                    "- 全文必须是自然的段落文本。\n"
-                    "- 不要使用任何列表符号。\n"
-                    "- 语言要通俗，假设读者是你的大一学弟学妹。"
+                    f"请精读选中的论文，写一篇深度解读笔记。\n"
+                    f"**核心原则：不要翻译摘要，要讲清楚这篇论文到底解决了什么实际问题。**\n\n"
+                    f"{paper_style_guide}\n\n"
+                    f"**写作逻辑**：\n"
+                    f"1. **痛点切入**：以前大家做这个任务（比如生成视频）有什么大坑？（慢？假？贵？）\n"
+                    f"2. **核心高光**：这篇论文究竟牛在哪里？（比如：速度快了10倍？连毛孔都看清了？）\n"
+                    f"3. **原理解密**：用最简单的话讲讲它是怎么做到的？（不要堆公式，用比喻）\n"
+                    f"4. **实验亮点**：有没有什么惊艳的数据或对比图？（'吊打'了谁？）\n"
+                    f"5. **我的思考**：这玩意儿对未来有什么影响？是水文还是真·突破？\n\n"
+                    f"字数控制在 1000-1500 字。"
                 ),
                 "depends on": ["step1_paper"]
             },
             {
                 "id": "step3_format",
-                "title": "发布论文解读",
+                "title": "排版与发布（论文版）",
                 "description": (
-                    "1. **标题**：突出论文的“爽点”或“颠覆性”。\n"
-                    "2. **正文**：保持Step2生成的自然段落结构，检查不要有生硬的转折词。\n"
-                    "3. **图片**：必须包含论文的效果图或架构图（5张左右）。\n"
-                    "4. **发布**：调用 publish_content 发布。"
+                    "1. **标题**：必须包含顶会名称（如 AAAI 2025、CVPR 2024）和核心创新点（高效、实时、SOTA）。\n"
+                    "2. **配图**：调用 `download_and_process_paper` 工具，传入 Step1 中获取的 PDF 链接，自动下载并提取论文截图（首页、架构图、实验表）。\n"
+                    "3. **Tags**：#顶会 #论文解读 #深度学习 #CVPR #ArXiv 等。\n"
+                    "4. **发布**：将提取的图片路径传入 `publish_content` 工具发布。"
                 ),
                 "depends on": ["step1_paper", "step2_analysis"]
             }
@@ -436,6 +449,8 @@ class ContentGenerator:
                 self.config.get('openai_base_url'),
                 self.config.get('default_model', 'claude-sonnet-4-20250514')
             )
+            # 初始化PaperUtils
+            self.paper_utils = PaperUtils(self.llm_client, self.config)
 
             # 初始化所有服务器（带超时和错误隔离）
             # npx 首次下载可能较慢，给 120 秒超时
@@ -464,7 +479,11 @@ class ContentGenerator:
             raise
 
     async def get_available_tools(self) -> List[Tool]:
-        """获取所有可用的工具"""
+        """获取所有可用的工具
+        
+        Returns:
+            所有服务器提供的工具列表 + 本地工具
+        """
         all_tools = []
         for server in self.servers:
             try:
@@ -473,6 +492,34 @@ class ContentGenerator:
                 logger.info(f"服务器 {server.name} 提供 {len(tools)} 个工具")
             except Exception as e:
                 logger.error(f"从服务器 {server.name} 获取工具失败: {e}")
+
+        # 添加本地 PaperUtils 工具
+        if self.paper_utils:
+            all_tools.extend([
+                Tool(
+                    name="search_latest_papers",
+                    description="Searching for the latest AI papers on ArXiv. Returns paper titles, abstracts, PDF links, etc.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "Search keywords (e.g. 'LLM', 'CVPR 2024')"},
+                            "max_results": {"type": "integer", "description": "Number of results to return (default 5)"}
+                        },
+                        "required": ["query"]
+                    }
+                ),
+                Tool(
+                    name="download_and_process_paper",
+                    description="Download the paper PDF and convert the first page and key figures into images.",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "pdf_url": {"type": "string", "description": "The URL of the PDF to download"}
+                        },
+                        "required": ["pdf_url"]
+                    }
+                )
+            ])
 
         return all_tools
 
@@ -1150,8 +1197,28 @@ class ContentGenerator:
 
                             logger.info(f"执行工具: {tool_name} 参数: {arguments}")
 
+                            # 拦截本地工具调用
+                            local_tool_handled = False
+                            if self.paper_utils:
+                                if tool_name == "search_latest_papers":
+                                    logger.info("调用本地工具: search_latest_papers")
+                                    # 在线程池中运行同步方法
+                                    tool_result = await asyncio.to_thread(
+                                        self.paper_utils.search_latest_papers, 
+                                        **arguments
+                                    )
+                                    local_tool_handled = True
+                                elif tool_name == "download_and_process_paper":
+                                    logger.info("调用本地工具: download_and_process_paper")
+                                    # 在线程池中运行同步方法
+                                    tool_result = await asyncio.to_thread(
+                                        self.paper_utils.download_and_process_paper,
+                                        **arguments
+                                    )
+                                    local_tool_handled = True
+
                             # 🔍 特殊处理: 在发布前验证图片URL
-                            if tool_name == "publish_content":
+                            if not local_tool_handled and tool_name == "publish_content":
                                 # 0. 检查标题长度限制 (小红书限制20字)
                                 title_text = arguments.get("title", "")
                                 if len(title_text) > 20:
@@ -1218,6 +1285,27 @@ class ContentGenerator:
 
                                     # 执行发布工具
                                     tool_result = None
+                                    
+                                    if local_tool_handled:
+                                        # 如果已经是本地工具处理过的，不需要再查MCP
+                                        pass
+                                    else:
+                                        for server in self.servers:
+                                            tools = await server.list_tools()
+                                            if any(tool.name == tool_name for tool in tools):
+                                                try:
+                                                    tool_result = await server.execute_tool(tool_name, arguments)
+                                                    break
+                                                except Exception as e:
+                                                    logger.error(f"执行工具 {tool_name} 出错: {e}")
+                                                    tool_result = f"Error: {str(e)}"
+
+                                    if tool_result is None:
+                                        tool_result = f"未找到工具 {tool_name}"
+                            else:
+                                # 其他工具正常执行
+                                if not local_tool_handled:
+                                    tool_result = None
                                     for server in self.servers:
                                         tools = await server.list_tools()
                                         if any(tool.name == tool_name for tool in tools):
@@ -1226,21 +1314,6 @@ class ContentGenerator:
                                                 break
                                             except Exception as e:
                                                 logger.error(f"执行工具 {tool_name} 出错: {e}")
-                                                tool_result = f"Error: {str(e)}"
-
-                                    if tool_result is None:
-                                        tool_result = f"未找到工具 {tool_name}"
-                            else:
-                                # 其他工具正常执行
-                                tool_result = None
-                                for server in self.servers:
-                                    tools = await server.list_tools()
-                                    if any(tool.name == tool_name for tool in tools):
-                                        try:
-                                            tool_result = await server.execute_tool(tool_name, arguments)
-                                            break
-                                        except Exception as e:
-                                            logger.error(f"执行工具 {tool_name} 出错: {e}")
                                             tool_result = f"Error: {str(e)}"
 
                                 if tool_result is None:
@@ -1377,6 +1450,12 @@ class ContentGenerator:
                     available_tools = await self.get_available_tools()
 
             logger.info(f"总共可用工具数: {len(available_tools)}")
+
+            # 如果是论文分析模式，初始化 PaperUtils
+            if content_type == "paper_analysis":
+                self.paper_utils = PaperUtils()
+            else:
+                self.paper_utils = None
 
             # 获取研究计划
             research_plan = self.get_research_plan(topic, content_type)
