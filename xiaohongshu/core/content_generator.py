@@ -276,7 +276,7 @@ class ContentGenerator:
                 "description": (
                     "1. 将文章调整为适合小红书的格式：\n"
                     "   - 标题控制在20字以内，突出亮点和价值\n"
-                    "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过1000字, 禁止使用“#”\n"
+                    "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过2000字, 禁止使用“#”\n"
                     "   - 提取5个精准的话题标签到tags数组\n"
                     "   - **图片要求**: 提供8-10张图片URL备选，必须是从搜索结果中找到的真实图片链接，绝对不能自己编造。避免 gtimg.com、sinaimg.cn、mmbiz.qpic.cn、freepik.com、shutterstock.com 等有防盗链的网站\n"
                     "   - 图片类型：实物图、效果图、数据图表等，避免纯文字图片\n"
@@ -1088,14 +1088,14 @@ class ContentGenerator:
                                         logger.error(f"标题缩短失败: {e}")
                                         arguments["title"] = title_text[:18] + "..."
 
-                                # 1. 检查内容长度限制 (小红书限制1000字)
+                                # 1. 检查内容长度限制 (用户设置为2000字)
                                 content_text = arguments.get("content", "")
-                                if len(content_text) > 1000:
-                                    logger.warning(f"⚠️ 内容长度 ({len(content_text)}) 超过限制 (1000)，自动截断...")
-                                    # 在995字前找到最后一个换行符，保持段落完整
-                                    truncated = content_text[:995]
+                                if len(content_text) > 2000:
+                                    logger.warning(f"⚠️ 内容长度 ({len(content_text)}) 超过限制 (2000)，自动截断...")
+                                    # 在1995字前找到最后一个换行符，保持段落完整
+                                    truncated = content_text[:1995]
                                     last_newline = truncated.rfind('\n')
-                                    if last_newline > 800:
+                                    if last_newline > 1800:
                                         truncated = truncated[:last_newline]
                                     arguments["content"] = truncated
                                     logger.info(f"✅ 内容已截断至 {len(truncated)} 字")
