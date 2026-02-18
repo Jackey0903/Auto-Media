@@ -123,6 +123,8 @@ class ContentGenerator:
                 'qnam.smzdm.com', 'am.zdmimg.com', 'preview.qiantucdn.com',
                 'shutterstock.com', 'gettyimages.com', 'istockphoto.com',
                 'dreamstime.com', 'stock.adobe.com', '123rf.com',
+                # 国内有防盗链的CDN - Python验证能通过但Go MCP Server下载会403
+                'inews.gtimg.com', 'gtimg.com', 'sinaimg.cn', 'mmbiz.qpic.cn',
             ]
             if any(domain in url.lower() for domain in blocked_domains):
                 logger.warning(f"⛔ 跳过防盗链域名: {url}")
@@ -264,7 +266,7 @@ class ContentGenerator:
                     f"   - 结合具体数据、案例和专家观点增强可信度\n"
                     f"   - 语言通俗易懂，避免过于技术化的表述\n"
                     f"2. 文章长度控制在800-1200字，适合社交媒体阅读。\n"
-                    f"3. 准备8-10张高质量配图，必须是真实的网络图片链接（HTTPS地址）。多准备几张备选，部分链接可能无法下载会被过滤。**优先从中国互联网搜索图片**（如 img.alicdn.com、pic.rmb.bdstatic.com、inews.gtimg.com 等国内CDN），避免使用国外图片网站（freepik.com、shutterstock.com等），国外图片在国内服务器上可能无法访问。"
+                    f"3. 准备8-10张高质量配图，必须是真实的网络图片链接（HTTPS地址）。多准备几张备选，部分链接可能无法下载会被过滤。**优先使用无防盗链的图片源**（如 img.alicdn.com、pic.rmb.bdstatic.com、simg.baai.ac.cn 等），避免使用 gtimg.com、sinaimg.cn、mmbiz.qpic.cn、freepik.com、shutterstock.com 等有防盗链的网站。"
                 ),
                 "depends on": ["step2"]
             },
@@ -276,7 +278,7 @@ class ContentGenerator:
                     "   - 标题控制在20字以内，突出亮点和价值\n"
                     "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过1000字, 禁止使用“#”\n"
                     "   - 提取5个精准的话题标签到tags数组\n"
-                    "   - **图片要求**: 提供8-10张图片URL备选（系统会验证并筛选有效图片）。**优先从中国互联网搜索图片**（img.alicdn.com、pic.rmb.bdstatic.com、inews.gtimg.com等国内CDN），避免国外图片网站\n"
+                    "   - **图片要求**: 提供8-10张图片URL备选（系统会验证并筛选有效图片）。**优先使用 img.alicdn.com、pic.rmb.bdstatic.com、simg.baai.ac.cn 等无防盗链的图片源**，避免 gtimg.com、sinaimg.cn、mmbiz.qpic.cn 等有防盗链的网站\n"
                     "   - 图片类型：实物图、效果图、数据图表等，避免纯文字图片\n"
                     "2. 整理成标准的JSON格式（仅在内部使用，不输出）：\n"
                     "   {\n"
