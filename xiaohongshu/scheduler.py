@@ -125,16 +125,40 @@ async def run_generation_task() -> None:
         if not server_manager.is_initialized():
             await server_manager.initialize(config)
 
-        generator = ContentGenerator(config)
-        topics = await generator.fetch_trending_topics(domain=domain)
+        if content_type == "paper_analysis":
+            # 论文模式：直接搜索最新论文
+            logger.info("正在获取最新论文作为话题...")
+            # 临时初始化 PaperUtils (因为它没有绑定在 ServerManager 上)
+            from core.paper_utils import PaperUtils
+            paper_utils = PaperUtils()
+            papers = paper_utils.search_latest_papers(query="AI", max_results=5)
+            
+            if not papers:
+                logger.warning("未获取到论文，跳过本轮任务")
+                return
+                
+            # 随机选一个，或者选最新的
+            selected_topic = papers[0]
+            # 构造一个符合格式的 topic 对象
+            topic_title = f"{selected_topic['title']} (ArXiv: {selected_topic['arxiv_url']})"
+            logger.info(f"选中论文: {topic_title}")
 
-        if not topics:
-            logger.warning("未获取到热点话题，跳过本轮任务")
-            return
+        else:
+            # 新闻模式：获取热点话题
+            generator = ContentGenerator(config)
+            topics = await generator.fetch_trending_topics(domain=domain)
 
-        selected_topic = topics[0]
-        topic_title = selected_topic.get("title", "未知话题")
-        logger.info(f"选中话题: {topic_title}")
+            if not topics:
+                logger.warning("未获取到热点话题，跳过本轮任务")
+                return
+
+            selected_topic = topics[0]
+            topic_title = selected_topic.get("title", "未知话题")
+            logger.info(f"选中话题: {topic_title}")
+            
+        # 重新初始化 generator (确保配置正确)
+        if 'generator' not in locals():
+            generator = ContentGenerator(config)
 
         result = await generator.generate_and_publish(topic_title, content_type=content_type)
         if result.get("success"):

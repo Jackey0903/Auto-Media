@@ -373,7 +373,8 @@ class ContentGenerator:
                     f"1. **新**：必须是最近发表或更新的。\n"
                     f"2. **有热度**：引用量高，或者在 Twitter/Reddit 上有讨论的。\n"
                     f"3. **有图**：确保能获取到 PDF 原文链接（用于后续提取图片）。\n"
-                    f"输出必须包含：论文标题、作者、ArXiv ID、PDF 链接、摘要。"
+                    f"输出必须包含：论文标题、作者、ArXiv ID、PDF 链接、摘要。\n"
+                    f"**重要**：请在输出的最后一行明确写出 PDF 链接，格式为：`PDF Link: https://arxiv.org/pdf/xxxx.xxxxx.pdf`"
                 ),
                 "depends on": []
             },
@@ -390,7 +391,8 @@ class ContentGenerator:
                     f"3. **原理解密**：用最简单的话讲讲它是怎么做到的？（不要堆公式，用比喻）\n"
                     f"4. **实验亮点**：有没有什么惊艳的数据或对比图？（'吊打'了谁？）\n"
                     f"5. **我的思考**：这玩意儿对未来有什么影响？是水文还是真·突破？\n\n"
-                    f"字数控制在 1000-1500 字。"
+                    f"字数控制在 1000-1500 字。\n"
+                    f"**必须在回答的最后保留 PDF 链接**，格式为：`PDF Link: https://arxiv.org/pdf/xxxx.xxxxx.pdf`，以便下一步提取图片。"
                 ),
                 "depends on": ["step1_paper"]
             },
@@ -399,7 +401,10 @@ class ContentGenerator:
                 "title": "排版与发布（论文版）",
                 "description": (
                     "1. **标题**：必须包含顶会名称（如 AAAI 2025、CVPR 2024）和核心创新点（高效、实时、SOTA）。\n"
-                    "2. **配图**：**严禁使用 tavily_search 搜索图片**。必须调用 `download_and_process_paper` 工具，传入 Step1 或 Step2 中明确提到的 PDF 链接（如 arXiv PDF URL），自动下载并提取论文截图。\n"
+                    "2. **配图**：**严禁使用 tavily_search 搜索图片**。必须调用 `download_and_process_paper` 工具。\n"
+                    "   - 从上一轮（Step2）的输出中找到 `PDF Link: ...`。\n"
+                    "   - 将该链接作为 `pdf_url` 参数传入 `download_and_process_paper`。\n"
+                    "   - 如果找不到 PDF 链接，才允许使用 `search_latest_papers` 重新搜索论文标题获取链接。\n"
                     "3. **Tags**：#顶会 #论文解读 #深度学习 #CVPR #ArXiv 等。\n"
                     "4. **发布**：必须调用 `publish_content` 工具发布。将 `download_and_process_paper` 返回的本地图片路径列表（list of strings）直接传给 `images` 参数。"
                 ),
@@ -450,7 +455,7 @@ class ContentGenerator:
                 self.config.get('default_model', 'claude-sonnet-4-20250514')
             )
             # 初始化PaperUtils
-            self.paper_utils = PaperUtils(self.llm_client, self.config)
+            self.paper_utils = PaperUtils()
 
             # 初始化所有服务器（带超时和错误隔离）
             # npx 首次下载可能较慢，给 120 秒超时
@@ -493,7 +498,6 @@ class ContentGenerator:
             except Exception as e:
                 logger.error(f"从服务器 {server.name} 获取工具失败: {e}")
 
-        # 添加本地 PaperUtils 工具
         if self.paper_utils:
             all_tools.extend([
                 Tool(
@@ -520,7 +524,9 @@ class ContentGenerator:
                     }
                 )
             ])
+            logger.info(f"已添加本地PaperUtils工具: search_latest_papers, download_and_process_paper")
 
+        logger.info(f"最终可用工具列表: {[t.name for t in all_tools]}")
         return all_tools
 
     async def fetch_trending_topics(self, domain: str = "") -> List[Dict[str, str]]:
