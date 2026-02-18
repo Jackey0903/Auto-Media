@@ -399,9 +399,9 @@ class ContentGenerator:
                 "title": "排版与发布（论文版）",
                 "description": (
                     "1. **标题**：必须包含顶会名称（如 AAAI 2025、CVPR 2024）和核心创新点（高效、实时、SOTA）。\n"
-                    "2. **配图**：调用 `download_and_process_paper` 工具，传入 Step1 中获取的 PDF 链接，自动下载并提取论文截图（首页、架构图、实验表）。\n"
+                    "2. **配图**：**严禁使用 tavily_search 搜索图片**。必须调用 `download_and_process_paper` 工具，传入 Step1 或 Step2 中明确提到的 PDF 链接（如 arXiv PDF URL），自动下载并提取论文截图。\n"
                     "3. **Tags**：#顶会 #论文解读 #深度学习 #CVPR #ArXiv 等。\n"
-                    "4. **发布**：将提取的图片路径传入 `publish_content` 工具发布。"
+                    "4. **发布**：必须调用 `publish_content` 工具发布。将 `download_and_process_paper` 返回的本地图片路径列表（list of strings）直接传给 `images` 参数。"
                 ),
                 "depends on": ["step1_paper", "step2_analysis"]
             }
