@@ -15,7 +15,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - XHS_MCP_URL=http://mcp-server:18060/mcp
-      - TAVILY_API_KEY=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
+      - TAVILY_API_KEY=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
       - AUTO_PUBLISH_INTERVAL_HOURS=2
       - AUTO_PUBLISH_RUN_ON_START=true
       - AUTO_PUBLISH_DOMAIN=AI
