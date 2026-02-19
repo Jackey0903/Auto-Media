@@ -87,6 +87,10 @@ class PaperAgent:
         【核心任务】
         请基于以上信息（你可以结合自己的知识库补充背景），写一篇深度的、纯文字的、口语化的论文解读。字数控制在 800 字左右，确保能在小红书完整发布。
         
+        【输出格式要求 - 非常重要】
+        第一行必须是标题，格式为：`TITLE: 你的标题（20字以内，吸引人）`
+        第二行开始是正文。
+
         【⚠️ 绝对禁止的格式（防 AI 味底线，必须严格遵守）】
         1. 绝对禁止使用任何 Emoji 表情符号（！一个都不能有！）。
         2. 绝对禁止使用任何形式的列表符号（如 1. 2. 3. 或 - 或 * ）。
@@ -111,10 +115,14 @@ class PaperAgent:
             # LLMClient has .chat() method, not .one_chat()
             response = self.llm_client.chat(messages, max_tokens=8192)
             
+            content = ""
             # response.choices[0].message.content
             if hasattr(response, 'choices') and len(response.choices) > 0:
-                return response.choices[0].message.content
-            return str(response)
+                content = response.choices[0].message.content
+            else:
+                content = str(response)
+
+            return content
             
         except Exception as e:
             logger.error(f"LLM 生成失败: {e}")
@@ -128,21 +136,35 @@ class PaperAgent:
         if not server_manager.is_initialized():
             await server_manager.initialize(self.config)
 
-        # 构造标题 (简单直接)
-        title = f"【论文精读】{paper['title'][:20]}... 深度解析"
+        # 提取标题
+        title = ""
+        final_content = content
+        
+        lines = content.strip().split('\n')
+        if lines and lines[0].startswith("TITLE:"):
+            title = lines[0].replace("TITLE:", "").strip()
+            final_content = '\n'.join(lines[1:]).strip()
+        
+        # 兜底标题
+        if not title:
+            # 如果没生成标题，用论文标题截取
+            title = paper['title'][:20]
+        
+        # 再次确保标题不超过 20 字
+        if len(title) > 20:
+             title = title[:20]
+
+        logger.info(f"最终发布标题: {title}")
         
         # 调用 MCP Tool
         try:
             tool_name = "publish_content"
             arguments = {
                 "title": title,
-                "content": content,
+                "content": final_content,
                 "images": image_paths
             }
             
-            # 这里需要一个能调用 MCP 工具的方法，复用 ServerManager 的 session 吗？
-            # ServerManager 目前主要管理连接，没有直接暴露 call_tool
-            # 我们需要手动从 session 调用，或者复用 ContentGenerator 的逻辑
             # 为了简单，我们手动调用 xhs server
             
             xhs_server = server_manager.get_server_by_name("xhs")
