@@ -39,13 +39,19 @@ class PaperAgent:
         
         logger.info(f"🖼️ 成功转换 {len(image_paths)} 张图片")
 
-        # 3. 生成深度解读
-        content = await self.generate_interpretation(paper)
+        # 3. 提取全文 (用于深度解读)
+        full_text = self.paper_utils.extract_text_from_pdf(paper['pdf_url'])
+        if not full_text:
+            logger.warning("⚠️ 全文提取失败，将仅使用摘要生成")
+            full_text = "（全文提取失败，请基于摘要和你的知识库进行解读）"
+
+        # 4. 生成深度解读
+        content = await self.generate_interpretation(paper, full_text)
         if not content:
             logger.error("❌ 内容生成失败，任务终止")
             return
 
-        # 4. 发布到小红书
+        # 5. 发布到小红书
         await self.publish_to_xhs(paper, content, image_paths)
 
     def find_target_paper(self, topic: str) -> Optional[Dict]:
@@ -63,7 +69,7 @@ class PaperAgent:
         
         return None
 
-    async def generate_interpretation(self, paper: Dict) -> str:
+    async def generate_interpretation(self, paper: Dict, full_text: str) -> str:
         """生成无 AI 味的深度解读"""
         
         # 构造 Prompt (完全复用用户提供的 strictly human prompt)
@@ -75,6 +81,9 @@ class PaperAgent:
         链接: {paper['arxiv_url']}
         摘要: {paper['summary']}
         
+        【论文原文片段】
+        {full_text[:15000]} 
+
         【核心任务】
         请基于以上信息（你可以结合自己的知识库补充背景），写一篇深度的、纯文字的、口语化的论文解读。字数控制在 800 字左右，确保能在小红书完整发布。
         

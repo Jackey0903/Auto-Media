@@ -177,6 +177,37 @@ class PaperUtils:
 
         return image_paths
 
+    
+    def extract_text_from_pdf(self, pdf_url: str, max_chars: int = 20000) -> str:
+        """从PDF中提取全文 (用于LLM深度阅读)"""
+        paper_id = pdf_url.split('/')[-1].replace('.pdf', '')
+        pdf_path = os.path.join(self.download_dir, f"{paper_id}.pdf")
+        
+        # 确保已下载
+        if not os.path.exists(pdf_path):
+             self.download_and_process_paper(pdf_url, paper_id)
+        
+        if not os.path.exists(pdf_path):
+            return ""
+
+        try:
+            logger.info(f"正在提取PDF文本: {pdf_path}")
+            doc = fitz.open(pdf_path)
+            full_text = ""
+            
+            for page in doc:
+                full_text += page.get_text()
+                if len(full_text) > max_chars:
+                    full_text = full_text[:max_chars] + "\n...[Content Truncated]..."
+                    break
+            
+            doc.close()
+            return full_text
+            
+        except Exception as e:
+            logger.error(f"提取PDF文本失败: {e}")
+            return ""
+
     def convert_full_paper_to_images(self, pdf_url: str, max_pages: int = 18) -> List[str]:
         """下载PDF并将每一页转换为图片 (用于全图发布)"""
         # 1. 下载或获取PDF路径
