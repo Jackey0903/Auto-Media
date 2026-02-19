@@ -130,6 +130,20 @@ class ServerManager:
         """
         return self.servers
 
+    def get_server_by_name(self, name: str) -> Optional[Server]:
+        """根据名称获取服务器实例
+        
+        Args:
+            name: 服务器名称
+            
+        Returns:
+            服务器实例或 None
+        """
+        for server in self.servers:
+            if server.name == name:
+                return server
+        return None
+
     def get_llm_client(self) -> Optional[LLMClient]:
         """获取 LLM 客户端
 

@@ -108,8 +108,14 @@ class PaperAgent:
 
         try:
             messages = [{"role": "user", "content": prompt}]
-            response = await self.llm_client.one_chat(messages)
-            return response
+            # LLMClient has .chat() method, not .one_chat()
+            response = self.llm_client.chat(messages, max_tokens=8192)
+            
+            # response.choices[0].message.content
+            if hasattr(response, 'choices') and len(response.choices) > 0:
+                return response.choices[0].message.content
+            return str(response)
+            
         except Exception as e:
             logger.error(f"LLM 生成失败: {e}")
             return None
@@ -139,7 +145,7 @@ class PaperAgent:
             # 我们需要手动从 session 调用，或者复用 ContentGenerator 的逻辑
             # 为了简单，我们手动调用 xhs server
             
-            xhs_server = server_manager.get_server("xhs")
+            xhs_server = server_manager.get_server_by_name("xhs")
             if not xhs_server:
                 logger.error("❌ XHS 服务未连接")
                 return
