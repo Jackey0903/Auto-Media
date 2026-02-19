@@ -173,11 +173,48 @@ class PaperUtils:
 
         except Exception as e:
             logger.error(f"处理PDF失败: {e}")
-            # 如果转换失败，可能是没有安装poppler，这里应该返回空或者只有下载的PDF路径? 
-            # 暂时返回空列表，表示没有可用图片
             pass
 
         return image_paths
+
+    def convert_full_paper_to_images(self, pdf_url: str, max_pages: int = 18) -> List[str]:
+        """下载PDF并将每一页转换为图片 (用于全图发布)"""
+        # 1. 下载或获取PDF路径
+        paper_id = pdf_url.split('/')[-1].replace('.pdf', '')
+        pdf_path = os.path.join(self.download_dir, f"{paper_id}.pdf")
+        
+        if not os.path.exists(pdf_path):
+             self.download_and_process_paper(pdf_url, paper_id) # 复用下载逻辑
+        
+        if not os.path.exists(pdf_path):
+            logger.error(f"PDF文件未找到: {pdf_path}")
+            return []
+
+        image_output_dir = os.path.join(self.image_dir, paper_id, "full_pages")
+        os.makedirs(image_output_dir, exist_ok=True)
+        
+        logger.info(f"正在全页转换PDF: {pdf_path} (Max {max_pages} pages)")
+        image_paths = []
+        
+        try:
+            # 转换所有页面
+            images = convert_from_path(pdf_path, dpi=200)
+            
+            for i, image in enumerate(images):
+                if i >= max_pages:
+                    break
+                    
+                img_filename = f"full_page_{i+1}.jpg"
+                img_path = os.path.join(image_output_dir, img_filename)
+                image.save(img_path, "JPEG")
+                image_paths.append(img_path)
+                logger.info(f"保存全页图片: {img_path}")
+                
+            return image_paths
+            
+        except Exception as e:
+            logger.error(f"全页转换失败: {e}")
+            return []
 
 # 测试代码
 if __name__ == "__main__":

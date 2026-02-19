@@ -103,6 +103,36 @@ python app.py
 
 ---
 
+## 顶会论文解读机器人 (Paper Bot) 🤖
+
+这是一个完全独立的模块，专为高质量论文解读设计。
+
+**核心特性**：
+1. **全图发布**：不再只是截取一张图，而是将 **整篇 PDF 论文** (Page 1 to End) 转为图片发布，让读者可以直接阅读原文。
+2. **顶会锁定**：专攻 CVPR, ICCV, NeurIPS, ICML 等顶级会议，拒绝水文。
+3. **深度解读 (Human-Level)**：
+   - 内置“资深研究员”人设。
+   - **严格禁止**：Emoji、列表、小标题、八股文转折词。
+   - **叙事逻辑**：痛点 -> 破局点 -> 实验证明 -> 个人启发。
+
+**启动命令**：
+
+```bash
+# 进入项目目录
+cd xiaohongshu
+
+# 运行一次 (默认搜 CVPR)
+python run_paper_bot.py
+
+# 指定话题或会议
+python run_paper_bot.py --topic "NeurIPS"
+
+# 指定话题 + 关键词
+python run_paper_bot.py --topic "LLM Hallucination"
+``` 
+
+---
+
 ## 自动发布任务管理 (进阶)
 
 除了手动在 Web 界面生成，系统还支持后台自动定时发布。
