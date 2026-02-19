@@ -53,7 +53,8 @@ class PaperUtils:
                     "authors": [a.name for a in r.authors],
                     "pdf_url": r.pdf_url,
                     "arxiv_url": r.entry_id,
-                    "categories": r.categories
+                    "categories": r.categories,
+                    "comment": r.comment or "" # 获取评论信息（通常包含会议名称）
                 }
                 papers.append(paper_info)
                 logger.info(f"找到论文: {r.title} ({r.published})")
@@ -75,6 +76,24 @@ class PaperUtils:
              except:
                  pass
 
+        # 优先级排序：优先显示顶会论文 (CVPR, ICCV, NeurIPS, ECCV, AAAI, ICML)
+        def get_priority(paper):
+            text = (paper['title'] + " " + paper.get('comment', '')).upper()
+            if any(conf in text for conf in ["CVPR", "ICCV", "NEURIPS", "ECCV", "AAAI", "ICML"]):
+                return 2
+            if "CS.CV" in paper['categories'] or "CS.AI" in paper['categories']:
+                return 1
+            return 0
+
+        # 获取详细信息以检查 comment 字段（通常包含会议信息）
+        # 注意：arxiv.Result 对象直接有 comment 属性，不需要额外 API 调用
+        for p in papers:
+            # 重新获取原始 result 对象比较麻烦，这里简单处理
+            # 在构建 paper_info 时加入 comment
+            pass
+
+        papers.sort(key=get_priority, reverse=True)
+        
         return papers
 
     def download_and_process_paper(self, pdf_url: str, paper_id: str = None) -> List[str]:

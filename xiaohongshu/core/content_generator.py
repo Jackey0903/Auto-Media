@@ -385,13 +385,16 @@ class ContentGenerator:
                     f"请精读选中的论文，写一篇深度解读笔记。\n"
                     f"**核心原则：不要翻译摘要，要讲清楚这篇论文到底解决了什么实际问题。**\n\n"
                     f"{paper_style_guide}\n\n"
+                    f"**负面清单（出现即重写）**：\n"
+                    f"- 禁止使用：'首先'、'其次'、'最后'、'综上所述'、'总的来说'。\n"
+                    f"- 禁止使用：'本文提出了'、'该方法'（改用'它'、'这个模型'）。\n\n"
                     f"**写作逻辑**：\n"
                     f"1. **痛点切入**：以前大家做这个任务（比如生成视频）有什么大坑？（慢？假？贵？）\n"
                     f"2. **核心高光**：这篇论文究竟牛在哪里？（比如：速度快了10倍？连毛孔都看清了？）\n"
                     f"3. **原理解密**：用最简单的话讲讲它是怎么做到的？（不要堆公式，用比喻）\n"
                     f"4. **实验亮点**：有没有什么惊艳的数据或对比图？（'吊打'了谁？）\n"
                     f"5. **我的思考**：这玩意儿对未来有什么影响？是水文还是真·突破？\n\n"
-                    f"字数控制在 1000-1500 字。\n"
+                    f"字数控制在 800-1200 字（不要太长）。\n"
                     f"**必须在回答的最后保留 PDF 链接**，格式为：`PDF Link: https://arxiv.org/pdf/xxxx.xxxxx.pdf`，以便下一步提取图片。"
                 ),
                 "depends on": ["step1_paper"]
@@ -401,10 +404,9 @@ class ContentGenerator:
                 "title": "排版与发布（论文版）",
                 "description": (
                     "1. **标题**：必须包含顶会名称（如 AAAI 2025、CVPR 2024）和核心创新点（高效、实时、SOTA）。\n"
-                    "2. **配图**：**严禁使用 tavily_search 搜索图片**。必须调用 `download_and_process_paper` 工具。\n"
-                    "   - 从上一轮（Step2）的输出中找到 `PDF Link: ...`。\n"
-                    "   - 将该链接作为 `pdf_url` 参数传入 `download_and_process_paper`。\n"
-                    "   - 如果找不到 PDF 链接，才允许使用 `search_latest_papers` 重新搜索论文标题获取链接。\n"
+                    "2. **配图**：**必须使用论文原图**。\n"
+                    "   - 调用 `download_and_process_paper` 工具，传入 Step2 结尾的 `PDF Link`。\n"
+                    "   - **严禁** 使用 `tavily_search` 搜索网图。如果不调用 PDF 工具，直接视为任务失败。\n"
                     "3. **Tags**：#顶会 #论文解读 #深度学习 #CVPR #ArXiv 等。\n"
                     "4. **发布**：必须调用 `publish_content` 工具发布。将 `download_and_process_paper` 返回的本地图片路径列表（list of strings）直接传给 `images` 参数。"
                 ),
