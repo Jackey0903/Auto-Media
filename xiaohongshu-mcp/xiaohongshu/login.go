@@ -18,17 +18,21 @@ func NewLogin(page *rod.Page) *LoginAction {
 
 func (a *LoginAction) CheckLoginStatus(ctx context.Context) (bool, error) {
 	pp := a.page.Context(ctx)
-	pp.MustNavigate("https://www.xiaohongshu.com/explore").MustWaitLoad()
+	// 切换到创作中心页面检查，因为发布是在这里进行的
+	// 这样可以确保"已登录"状态确实意味着"可以发布"
+	pp.MustNavigate("https://creator.xiaohongshu.com/publish/publish?source=official").MustWaitLoad()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 
-	exists, _, err := pp.Has(`.main-container .user .link-wrapper .channel`)
+	// 检查发布容器是否存在
+	// publish.go 使用 div.upload-content 作为关键元素
+	exists, _, err := pp.Has(`div.upload-content`)
 	if err != nil {
 		return false, errors.Wrap(err, "check login status failed")
 	}
 
 	if !exists {
-		return false, errors.Wrap(err, "login status element not found")
+		return false, nil
 	}
 
 	return true, nil
