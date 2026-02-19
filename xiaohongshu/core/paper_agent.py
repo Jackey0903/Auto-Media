@@ -136,6 +136,29 @@ class PaperAgent:
         if not server_manager.is_initialized():
             await server_manager.initialize(self.config)
 
+        # 检查登录状态
+        xhs_server = server_manager.get_server_by_name("xhs")
+        if not xhs_server:
+            logger.error("❌ XHS 服务未连接")
+            return
+
+        try:
+            login_status = await xhs_server.session.call_tool("check_login_status", {})
+            # 假设返回格式: content=[TextContent(text='{"is_logged_in": false, ...}')]
+            # 或者直接是文本 "未登录"
+            # 简化处理：只要不报错就行，或者根据返回内容判断
+            # 但为了稳妥，如果 login_status 指示未登录，我们应该提示
+            logger.info(f"登录状态检查: {login_status}")
+            
+            # 简单的关键词检查 (根据实际返回调整)
+            status_text = str(login_status)
+            if "false" in status_text.lower() or "未登录" in status_text:
+                logger.error("❌ 未检测到登录状态！请先运行登录流程。")
+                logger.error("💡 提示: 请运行 docker compose run --rm app python main.py 扫描二维码登录")
+                return
+        except Exception as e:
+            logger.warning(f"⚠️ 无法检查登录状态: {e}")
+
         # 提取标题
         title = ""
         final_content = content

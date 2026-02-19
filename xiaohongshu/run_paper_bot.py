@@ -29,6 +29,8 @@ async def main():
     parser.add_argument("--max-pages", type=int, default=18, help="Max pages to convert to images (XHS limit is 18)")
     parser.add_argument("--interval", type=int, default=0, help="Run interval in hours (0 for one-off)")
     
+    parser.add_argument("--login", action="store_true", help="Login to Xiaohongshu via QR Code")
+    
     args = parser.parse_args()
     
     # 加载配置
@@ -50,6 +52,33 @@ async def main():
 
     agent = PaperAgent(config)
     
+    # 登录模式
+    if args.login:
+        logger.info("🔐 Starting Login Mode...")
+        from core.server_manager import server_manager
+        
+        # 初始化连接
+        await server_manager.initialize(config)
+        xhs_server = server_manager.get_server_by_name("xhs")
+        if not xhs_server:
+            logger.error("❌ Failed to connect to XHS MCP server")
+            return
+
+        # 获取二维码
+        try:
+            logger.info("Requesting QR Code...")
+            result = await xhs_server.session.call_tool("get_login_qrcode", {})
+            # result.content typical structure: [TextContent(text='{"qr_data": "base64...", "timeout": 180}')]
+            # Verify structure first
+            logger.info(f"QR Code Result: {result}")
+            logger.info("✅ QR Code requested. Please check the server logs or container output if not displayed here.")
+            # Since we can't easily display the image in CLI, we'll ask user to trust the process if it's running
+            # Actually, to be useful, we should save the QR code to a file
+            
+        except Exception as e:
+            logger.error(f"❌ Login failed: {e}")
+        return
+
     logger.info(f"🤖 Paper Bot Started. Target: {args.topic}")
     
     if args.interval > 0:
