@@ -103,6 +103,65 @@ python app.py
 
 ---
 
+## 自动发布任务管理 (进阶)
+
+除了手动在 Web 界面生成，系统还支持后台自动定时发布。
+
+### 1. 启动任务
+
+你可以使用 Docker Compose 在后台运行特定的发布任务。
+
+**方式一：启动 AI 新闻速览 (默认模式)**
+```bash
+# 后台启动 (每小时自动执行)
+docker compose run -d --name ai_news app python scheduler.py --mode general
+
+# 立即执行一次 (测试用)
+docker compose run --rm app python scheduler.py --run-now --mode general
+```
+
+**方式二：启动 AI 论文速览**
+```bash
+# 后台启动 (每小时自动执行)
+docker compose run -d --name ai_paper app python scheduler.py --mode paper_analysis
+
+# 立即执行一次 (测试用)
+docker compose run --rm app python scheduler.py --run-now --mode paper_analysis
+```
+
+**方式三：启动知乎深度解读**
+```bash
+# 后台启动
+docker compose run -d --name ai_zhihu app python scheduler.py --mode zhihu
+```
+
+### 2. 停止任务
+
+如果你在后台启动了任务 (使用了 `-d` 参数)，可以使用以下命令停止它们：
+
+```bash
+# 停止 AI 新闻任务
+docker stop ai_news && docker rm ai_news
+
+# 停止 AI 论文任务
+docker stop ai_paper && docker rm ai_paper
+
+# 停止所有任务
+docker stop $(docker ps -q --filter ancestor=auto-media-app)
+```
+
+### 3. 查看日志
+
+查看后台任务的运行情况：
+
+```bash
+docker logs -f ai_news
+# 或
+docker logs -f ai_paper
+```
+
+---
+
 ## 常见问题排查
 
 1. **发布时提示 "MCP Server not initialized"**
